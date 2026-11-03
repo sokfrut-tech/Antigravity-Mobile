@@ -89,6 +89,7 @@ async function createTask(request, env, userId) {
   if (contentLength > 256_000) return error("payload_too_large", "Request body exceeds 256 KB.", 413);
   let body;
   try { body = await request.json(); } catch { return error("invalid_json", "Request body must be valid JSON.", 400); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return error("invalid_task", "Request body must be a JSON object.", 400);
   if (!validString(body.title, 1, 200) ||
       !validString(body.brief, 1, 20000) ||
       !validString(body.projectId, 1, 128) ||
