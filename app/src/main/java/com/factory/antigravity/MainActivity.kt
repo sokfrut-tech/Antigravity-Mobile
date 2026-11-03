@@ -275,47 +275,31 @@ private fun TaskCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Text(task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             if (task.details.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(task.details, style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Spacer(Modifier.height(14.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onPrevious, modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)) {
-                    Text("← Назад", maxLines = 1)
-                }
-                Button(onClick = onNext, modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp)) {
-                    Text(when (task.status) {
-                        TaskStatus.TODO -> "В работу →"
-                        TaskStatus.IN_PROGRESS -> "Готово →"
-                        TaskStatus.DONE -> "Вернуть →"
-                    }, maxLines = 1)
-                }
+            Spacer(Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                AssistChip(onClick = onPrevious, modifier = Modifier.weight(1f),
+                    label = { Text("← Назад", style = MaterialTheme.typography.labelSmall, maxLines = 1) })
+                AssistChip(onClick = onNext, modifier = Modifier.weight(1f),
+                    label = {
+                        Text(when (task.status) {
+                            TaskStatus.TODO -> "В работу →"
+                            TaskStatus.IN_PROGRESS -> "Готово →"
+                            TaskStatus.DONE -> "Вернуть →"
+                        }, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                    })
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(
-                    onClick = onSend,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                ) {
-                    Text("В фабрику", maxLines = 1, softWrap = false)
-                }
-                TextButton(
-                    onClick = onDelete,
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-                ) {
-                    Text("Удалить", color = MaterialTheme.colorScheme.error, maxLines = 1, softWrap = false)
-                }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                AssistChip(onClick = onSend, modifier = Modifier.weight(1f),
+                    label = { Text("⚡ Фабрика", style = MaterialTheme.typography.labelSmall, maxLines = 1) })
+                AssistChip(onClick = onDelete,
+                    label = { Text("Удалить", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, maxLines = 1) })
             }
         }
     }
