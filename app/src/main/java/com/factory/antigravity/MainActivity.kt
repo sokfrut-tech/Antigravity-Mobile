@@ -71,7 +71,7 @@ private fun AntigravityApp() {
     val tasks = remember {
         mutableStateListOf<BoardTask>().apply {
             val saved = storage.load()
-            if (saved.isNotEmpty()) {
+            if (saved != null) {
                 addAll(saved)
             } else {
                 addAll(
