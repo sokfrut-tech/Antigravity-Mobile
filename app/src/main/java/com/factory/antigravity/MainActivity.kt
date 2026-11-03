@@ -254,7 +254,27 @@ private fun AntigravityApp() {
                                         tasks[index] = task.copy(status = next)
                                     }
                                 },
-                                onDelete = { tasks.removeAll { it.id == task.id } }
+                                onDelete = { tasks.removeAll { it.id == task.id } },
+                                onSend = {
+                                    val baseUrl = connectionStore.baseUrl()
+                                    val token = connectionStore.readToken()
+                                    if (baseUrl.isNullOrBlank() || token.isNullOrBlank()) {
+                                        connectionStatus = "Save the HTTPS address and bearer token in Connection settings"
+                                    } else {
+                                        coroutineScope.launch {
+                                            connectionStatus = "Sending task to Factory…"
+                                            connectionStatus = runCatching {
+                                                FactoryApiClient.createTask(
+                                                    baseUrl = baseUrl,
+                                                    token = token,
+                                                    localTaskId = task.id,
+                                                    title = task.title,
+                                                    details = task.details
+                                                )
+                                            }.getOrElse { "Send failed: ${it.message ?: "network error"}" }
+                                        }
+                                    }
+                                }
                             )
                         }
                     }
@@ -363,7 +383,8 @@ private fun ConnectionSettingsDialog(
 private fun TaskCard(
     task: BoardTask,
     onMove: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onSend: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -383,6 +404,9 @@ private fun TaskCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
+                TextButton(onClick = onSend) {
+                    Text("Send", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                }
                 TextButton(onClick = onDelete) {
                     Text("Delete", color = Color(0xFFB14D5A), fontSize = 12.sp)
                 }
