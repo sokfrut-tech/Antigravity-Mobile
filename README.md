@@ -13,7 +13,7 @@ Android-first mobile command center for the Universal AI Factory.
 
 ## Antigravity desktop research
 
-See [Antigravity desktop capabilities and mobile adaptation](docs/ANTIGRAVITY_DESKTOP_CAPABILITIES.md).
+See [Antigravity desktop capabilities and mobile adaptation](docs/ANTIGRAVITY_DESKTOP_CAPABILITIES.md) and the [skills/plugins/model integration priority matrix](docs/INTEGRATION_SKILLS_PLUGINS_MATRIX.md).
 
 The desktop platform provides agent workflows, parallel subagents, browser automation, plans/diffs/artifacts, Skills, Rules, MCP servers, plugins and hooks. The mobile app will be a remote control plane for these capabilities, not a full desktop IDE port.
 
