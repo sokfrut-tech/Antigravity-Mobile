@@ -191,7 +191,16 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
     if (request.method === "GET" && path === "/v1/health") {
-      return json({ status: env.DB && env.API_TOKEN_SHA256 ? "ok" : "degraded", apiVersion: "1.0.0" }, 200, cors);
+      let healthy = false;
+      if (env.DB && env.API_TOKEN_SHA256) {
+        try {
+          const probe = await env.DB.prepare("SELECT 1 AS ok").first();
+          healthy = probe?.ok === 1;
+        } catch {
+          healthy = false;
+        }
+      }
+      return json({ status: healthy ? "ok" : "degraded", apiVersion: "1.0.0" }, 200, cors);
     }
     if (!["GET", "POST"].includes(request.method)) return error("method_not_allowed", "Method not allowed.", 405);
 
