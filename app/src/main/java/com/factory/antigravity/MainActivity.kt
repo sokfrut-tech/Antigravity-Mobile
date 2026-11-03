@@ -329,7 +329,7 @@ private fun ConnectionSettingsDialog(
     onSave: (String, String) -> Unit
 ) {
     var baseUrl by rememberSaveable { mutableStateOf(initialUrl) }
-    var token by rememberSaveable { mutableStateOf("") }
+    var token by remember { mutableStateOf("") }
     var validationMessage by rememberSaveable { mutableStateOf("") }
 
     AlertDialog(
