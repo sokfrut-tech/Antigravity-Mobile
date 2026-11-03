@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   dast:
-    uses: sokfrut-tech/Universal-AI-Factory/.github/workflows/factory-dast-reusable.yml@9fcfd92c1cc38e0f09a0d9a0e6dea9b9042f881e
+    uses: sokfrut-tech/Universal-AI-Factory/.github/workflows/factory-dast-reusable.yml@61ed38fdb98bd1a992ff5f4b03d515d48d30af76
     with:
       target_url: ${{ inputs.target_url }}
       authorization: ${{ inputs.authorization }}
