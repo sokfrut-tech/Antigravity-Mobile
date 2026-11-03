@@ -2,7 +2,7 @@
 
 This is the first backend implementation slice for Antigravity Mobile. It provides authenticated health, task creation/list/detail, and task event history using Cloudflare Workers + D1.
 
-**It is not deployed yet.** The mobile APK does not call this API yet. Provider dispatch is deliberately disabled and returns `503 provider_not_configured`; no fake agent run is created.
+**It is not deployed yet.** The Android app has secure connection settings, a health check and a per-task submit action, but those actions require a deployed API and a privately configured bearer token. Provider dispatch is deliberately disabled and returns `503 provider_not_configured`; no fake agent run is created.
 
 ## Security model (single-owner bootstrap)
 
@@ -25,7 +25,7 @@ This is the first backend implementation slice for Antigravity Mobile. It provid
 
 ## Deploy prerequisites
 
-The repository contains a guarded manual GitHub Actions deploy workflow at `.github/workflows/deploy-factory-api.yml`. It is deliberately manual and refuses to deploy while placeholders or required secrets are missing.
+The repository contains a guarded manual GitHub Actions deploy workflow at `.github/workflows/deploy-factory-api.yml`. It is deliberately manual and refuses to deploy while placeholders or required secrets are missing. First create a D1 database named `universal-ai-factory` in the intended Cloudflare account (for example, with `npx wrangler d1 create universal-ai-factory` on a trusted computer) and copy its UUID into `FACTORY_D1_DATABASE_ID`. The workflow applies the migration before deploying the Worker.
 
 Configure these in **Antigravity-Mobile → Settings → Secrets and variables → Actions**:
 
@@ -50,4 +50,4 @@ printf '%s' "$TOKEN" | sha256sum | cut -d' ' -f1
 
 Use the printed SHA-256 digest as `FACTORY_API_TOKEN_SHA256`; retain the raw token privately for the future Android secure-connection screen. Do not paste either value into this chat.
 
-The user-facing app login/token entry and secure Android Keystore storage are a separate client task; do not expose the API until that client-side storage is ready and the deployment workflow succeeds.
+The Android app now provides the secure token-entry screen and Keystore storage. After deployment, enter the Worker HTTPS URL and the raw token privately on the device. Do not paste either value into chat. Verify `/v1/health` before submitting tasks.
