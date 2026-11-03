@@ -85,11 +85,11 @@ jobs:
           upload: false
           output: ${{ runner.temp }}/codeql-${{ matrix.language }}.sarif
       - name: Archive CodeQL SARIF
-        if: always() && hashFiles(format('{0}/codeql-{1}.sarif', runner.temp, matrix.language)) != ''
+        if: always() && hashFiles(format('{0}/codeql-{1}.sarif/*.sarif', runner.temp, matrix.language)) != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: codeql-${{ matrix.language }}-sarif
-          path: ${{ runner.temp }}/codeql-${{ matrix.language }}.sarif
+          path: ${{ runner.temp }}/codeql-${{ matrix.language }}.sarif/*.sarif
           if-no-files-found: error
           retention-days: 14
 
