@@ -16,6 +16,12 @@ Antigravity is more than a code editor. Its product surfaces include desktop App
 
 Capabilities vary by surface, version, OS and account plan. The mobile app must not assume every desktop capability is exposed as a public API.
 
+## Antigravity SDK integration caveat
+
+The official Antigravity SDK is a Python package (google-antigravity) that exposes the Antigravity agent runtime, built-in tools, custom Python tools, MCP servers, skills, subagents, multimodal input and streaming. It is a useful candidate for a dedicated worker process.
+
+Do not assume the SDK automatically provides a hosted public endpoint that the phone can call. The SDK announcement described remote hosted execution as roadmap work. Until the current official SDK docs explicitly confirm a supported hosted deployment/API for our account, plan to run it inside a controlled worker environment and expose only our own authenticated Factory API to Android.
+
 ## What to reuse
 
 1. Skills: portable task playbooks, stored in this repository.
