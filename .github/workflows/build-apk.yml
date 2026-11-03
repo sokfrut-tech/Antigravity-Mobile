@@ -9,6 +9,9 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
+  actions: read
+  security-events: write
 
 concurrency:
   group: antigravity-mobile-apk-${{ github.ref }}
@@ -54,3 +57,13 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+
+  security:
+    name: Factory security gate
+    uses: ./.github/workflows/factory-security.yml
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      security-events: write
