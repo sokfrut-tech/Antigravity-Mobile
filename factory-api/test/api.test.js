@@ -75,3 +75,19 @@ test("unsupported HTTP methods are rejected before authentication", async () => 
   );
   assert.equal(response.status, 405);
 });
+
+test("task creation rejects a body over 256 KB even without Content-Length", async () => {
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/tasks", {
+      method: "POST",
+      headers: {
+        Origin: allowedOrigin,
+        Authorization: "Bearer 0123456789abcdef0123456789abcdef",
+        "Idempotency-Key": "oversized-request-key"
+      },
+      body: JSON.stringify({ title: "Large", brief: "x".repeat(257_000), projectId: "test", acceptanceCriteria: ["test"] })
+    }),
+    { DB: {}, API_TOKEN_SHA256: "not-the-token-digest", CORS_ORIGIN: allowedOrigin }
+  );
+  assert.equal(response.status, 401);
+});
