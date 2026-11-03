@@ -114,15 +114,22 @@ private fun AntigravityApp() {
                             TextButton(onClick = { showConnectionDialog = true }) { Text("API") }
                         }
                     )
-                    TabRow(selectedTabIndex = statuses.indexOf(selectedStatus)) {
+                    ScrollableTabRow(
+                        selectedTabIndex = statuses.indexOf(selectedStatus),
+                        edgePadding = 16.dp,
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
                         statuses.forEach { status ->
+                            val count = tasks.count { it.status == status }
+                            val label = when (status) {
+                                TaskStatus.TODO -> "Новые ($count)"
+                                TaskStatus.IN_PROGRESS -> "В работе ($count)"
+                                TaskStatus.DONE -> "Готово ($count)"
+                            }
                             Tab(
                                 selected = selectedStatus == status,
                                 onClick = { selectedTab = status.name },
-                                text = {
-                                    val count = tasks.count { it.status == status }
-                                    Text(status.label + "  " + count, maxLines = 1)
-                                }
+                                text = { Text(label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, softWrap = false) }
                             )
                         }
                     }
