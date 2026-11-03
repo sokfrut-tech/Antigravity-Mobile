@@ -34,4 +34,6 @@ jobs:
       - run: npm install
       - run: npm run check
       - run: npm test
+      - name: Apply D1 migrations locally
+        run: npx wrangler d1 migrations apply universal-ai-factory --local
       - run: npx wrangler deploy --dry-run --outdir .wrangler-dry-run
