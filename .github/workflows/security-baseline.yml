@@ -1,0 +1,124 @@
+name: Factory Security Baseline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Gitleaks secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Scan working tree and Git history
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e GIT_CONFIG_COUNT=1 \
+            -e GIT_CONFIG_KEY_0=safe.directory \
+            -e GIT_CONFIG_VALUE_0=/repo \
+            -v "$PWD:/repo" \
+            zricethezav/gitleaks:v8.24.2 \
+            git --source=/repo --redact --report-format sarif --report-path=/repo/gitleaks.sarif
+      - name: Archive redacted Gitleaks report
+        if: always() && hashFiles('gitleaks.sarif') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gitleaks-sarif
+          path: gitleaks.sarif
+          if-no-files-found: error
+          retention-days: 14
+
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: java-kotlin
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@a3d1b77a1ba1550fbb5c74db1dc3a11f4a481126
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Set up JDK for Kotlin build
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle for Kotlin build
+        if: matrix.language == 'java-kotlin'
+        uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947
+        with:
+          gradle-version: "8.9"
+      - name: Build Kotlin application for CodeQL
+        if: matrix.language == 'java-kotlin'
+        run: gradle --no-daemon :app:assembleDebug
+      - name: Analyze and export SARIF (artifact-only)
+        uses: github/codeql-action/analyze@a3d1b77a1ba1550fbb5c74db1dc3a11f4a481126
+        with:
+          upload: false
+          output: ${{ runner.temp }}/codeql-${{ matrix.language }}.sarif
+      - name: Archive CodeQL SARIF
+        if: always() && hashFiles(format('{0}/codeql-{1}.sarif', runner.temp, matrix.language)) != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: codeql-${{ matrix.language }}-sarif
+          path: ${{ runner.temp }}/codeql-${{ matrix.language }}.sarif
+          if-no-files-found: error
+          retention-days: 14
+
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+      - name: Resolve and audit Worker dependencies
+        working-directory: factory-api
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit --audit-level=high
+      - name: Set up JDK
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947
+        with:
+          gradle-version: "8.9"
+      - name: Resolve Android dependency graph
+        run: gradle --no-daemon :app:dependencies --configuration debugRuntimeClasspath
