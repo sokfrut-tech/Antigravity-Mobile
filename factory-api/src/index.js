@@ -85,6 +85,8 @@ async function createTask(request, env, userId) {
   const key = request.headers.get("Idempotency-Key");
   if (!validString(key, 8, 128)) return error("invalid_idempotency_key", "Idempotency-Key (8–128 chars) is required.", 400);
 
+  const contentLength = Number(request.headers.get("Content-Length") || 0);
+  if (contentLength > 256_000) return error("payload_too_large", "Request body exceeds 256 KB.", 413);
   let body;
   try { body = await request.json(); } catch { return error("invalid_json", "Request body must be valid JSON.", 400); }
   if (!validString(body.title, 1, 200) ||
@@ -144,7 +146,8 @@ async function createTask(request, env, userId) {
 async function listTasks(url, env, userId) {
   const projectId = url.searchParams.get("projectId");
   const status = url.searchParams.get("status");
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 30), 1), 100);
+  const requestedLimit = Number(url.searchParams.get("limit") || 30);
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100) : 30;
   if (status && !TASK_STATUSES.has(status)) return error("invalid_status", "Unsupported task status.", 400);
   const clauses = ["user_id=?"];
   const args = [userId];
@@ -165,8 +168,10 @@ async function getTask(id, env, userId) {
 async function getEvents(id, url, env, userId) {
   const task = await env.DB.prepare("SELECT id FROM tasks WHERE id=? AND user_id=?").bind(id, userId).first();
   if (!task) return error("not_found", "Task not found.", 404);
-  const after = Math.max(0, Number(url.searchParams.get("after") || 0));
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit") || 100), 1), 500);
+  const requestedAfter = Number(url.searchParams.get("after") || 0);
+  const after = Number.isFinite(requestedAfter) ? Math.max(Math.trunc(requestedAfter), 0) : 0;
+  const requestedLimit = Number(url.searchParams.get("limit") || 100);
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 500) : 100;
   const rows = await env.DB.prepare(
     "SELECT id,task_id,sequence,type,timestamp,summary,data_json FROM task_events WHERE task_id=? AND user_id=? AND sequence>? ORDER BY sequence LIMIT ?"
   ).bind(id, userId, after, limit).all();
