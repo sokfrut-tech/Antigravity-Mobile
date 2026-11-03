@@ -5,8 +5,7 @@
         android:label="Antigravity Mobile"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
-        <!-- nosemgrep: java.android.security.exported_activity.exported_activity -->
-        <!-- Export is required for the launcher entry point; this activity exposes only MAIN/LAUNCHER and no browsable/deep-link intent filters. -->
+        <!-- nosemgrep: java.android.security.exported_activity.exported_activity — Android launcher entry point; MAIN/LAUNCHER only, no deep links. -->
         <activity
             android:name=".MainActivity"
             android:exported="true">
