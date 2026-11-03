@@ -2,6 +2,7 @@ package com.factory.antigravity
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -29,7 +30,7 @@ class MainActivityUiTest {
         composeRule.onNodeWithText("Создать").performClick()
 
         composeRule.onNodeWithText("Проверка на Android-эмуляторе").assertIsDisplayed()
-        composeRule.onNodeWithText("← Назад").assertIsDisplayed()
+        composeRule.onAllNodesWithText("← Назад")[0].assertIsDisplayed()
         composeRule.onNodeWithText("⚡ Фабрика").assertIsDisplayed()
         composeRule.onNodeWithText("Удалить").assertIsDisplayed()
         composeRule.onNodeWithText("Новые (2)").assertIsDisplayed()
