@@ -28,7 +28,16 @@ test("health endpoint reports degraded when D1 is not configured", async () => {
   assert.deepEqual(await response.json(), { status: "degraded", apiVersion: "1.0.0" });
 });
 
-test("health reports degraded when D1 probe fails", async () => {\n  const response = await worker.fetch(\n    new Request("https://api.example.test/v1/health"),\n    { DB: { prepare: () => ({ first: async () => { throw new Error("offline"); } }) }, API_TOKEN_SHA256: "configured", CORS_ORIGIN: allowedOrigin }\n  );\n  assert.equal(response.status, 200);\n  assert.deepEqual(await response.json(), { status: "degraded", apiVersion: "1.0.0" });\n});\n\ntest("wildcard CORS configuration is rejected", async () => {
+test("health reports degraded when D1 probe fails", async () => {
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/health"),
+    { DB: { prepare: () => ({ first: async () => { throw new Error("offline"); } }) }, API_TOKEN_SHA256: "configured", CORS_ORIGIN: allowedOrigin }
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: "degraded", apiVersion: "1.0.0" });
+});
+
+test("wildcard CORS configuration is rejected", async () => {
   const response = await worker.fetch(
     new Request("https://api.example.test/v1/health", {
       headers: { Origin: allowedOrigin }
