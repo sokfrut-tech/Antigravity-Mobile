@@ -6,10 +6,12 @@ Android-first mobile command center for the Universal AI Factory.
 
 - Kotlin + Jetpack Compose
 - Android 7.0+ (API 24+)
-- Local Kanban prototype: To Do / In Progress / Done
-- Debug APK built by GitHub Actions
-- First successful CI build: run 41689146309
-- Current limitation: task state is in memory only; remote factory synchronization and model execution are not implemented yet.
+- Local Kanban board: To Do / In Progress / Done
+- Task board is persisted locally and covered by Robolectric tests
+- Connection settings use Android Keystore AES-GCM token encryption
+- GitHub Actions builds the debug APK and runs unit tests on pull requests
+- Factory API bootstrap exists under `factory-api/` but is not deployed yet
+- Task synchronization and real provider execution are not enabled yet.
 
 ## Antigravity desktop research
 
@@ -45,6 +47,10 @@ Validate and install it in a supported Antigravity App/CLI environment:
     agy plugin list
 
 The official Android CLI plugin is a separate developer tool for Antigravity, Claude Code and Codex. It provides Android project/device/test tooling and is not embedded in the mobile runtime app. See https://developer.android.com/tools/agents/android-cli/agent-plugins.
+
+## Factory API bootstrap
+
+See [factory-api/README.md](factory-api/README.md). The Cloudflare Worker + D1 bootstrap supports authenticated task create/list/detail and event history. Its deployment is manual and guarded by GitHub secrets. The Android app can save an HTTPS API address, encrypt a bearer token with Android Keystore, and test `/v1/health`. It does not yet submit tasks to the API. Provider dispatch intentionally returns `503 provider_not_configured` until a real agent worker is connected.
 
 ## Build
 
