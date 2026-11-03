@@ -14,8 +14,8 @@ internal class TaskStorage(context: Context) {
         Context.MODE_PRIVATE
     )
 
-    fun load(): List<BoardTask> {
-        val raw = preferences.getString(KEY_TASKS, null) ?: return emptyList()
+    fun load(): List<BoardTask>? {
+        val raw = preferences.getString(KEY_TASKS, null) ?: return null
         return try {
             val array = JSONArray(raw)
             buildList {
