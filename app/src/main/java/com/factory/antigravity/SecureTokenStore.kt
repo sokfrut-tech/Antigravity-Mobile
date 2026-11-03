@@ -31,9 +31,13 @@ internal class SecureTokenStore(context: Context) {
         }
         val editor = preferences.edit().putString(KEY_BASE_URL, normalized)
         if (rawToken.isNotBlank()) {
+            val normalizedToken = rawToken.trim()
+            require(normalizedToken.length in 32..512 && normalizedToken.matches(Regex("[A-Za-z0-9._~-]+"))) {
+                "Bearer token must be 32–512 URL-safe characters."
+            }
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
-            val encrypted = cipher.iv + cipher.doFinal(rawToken.trim().toByteArray(Charsets.UTF_8))
+            val encrypted = cipher.iv + cipher.doFinal(normalizedToken.toByteArray(Charsets.UTF_8))
             editor.putString(KEY_TOKEN, Base64.encodeToString(encrypted, Base64.NO_WRAP))
         }
         editor.apply()
