@@ -1,0 +1,366 @@
+openapi: 3.1.0
+info:
+  title: Universal AI Factory API
+  version: 1.0.0
+  description: Authenticated control-plane API for Antigravity Mobile. Design contract; not deployed yet.
+servers:
+  - url: https://factory-api.example.invalid
+    description: Placeholder only — replace after backend deployment.
+security:
+  - bearerAuth: []
+paths:
+  /v1/health:
+    get:
+      security: []
+      summary: Health and service version
+      responses:
+        '200':
+          description: Service health
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, apiVersion]
+                properties:
+                  status: { type: string, enum: [ok, degraded] }
+                  apiVersion: { type: string }
+  /v1/projects:
+    get:
+      summary: List projects available to the authenticated user
+      responses:
+        '200':
+          description: Project list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Project' }
+  /v1/tasks:
+    get:
+      summary: List tasks
+      parameters:
+        - in: query
+          name: projectId
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { $ref: '#/components/schemas/TaskStatus' }
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 30 }
+      responses:
+        '200':
+          description: Paginated tasks
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaskPage' }
+    post:
+      summary: Create a task
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTask' }
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '409':
+          description: Idempotency key conflict
+  /v1/tasks/{taskId}:
+    parameters:
+      - $ref: '#/components/parameters/taskId'
+    get:
+      summary: Get task details
+      responses:
+        '200':
+          description: Task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Task' }
+        '404':
+          description: Not found
+  /v1/tasks/{taskId}/runs:
+    parameters:
+      - $ref: '#/components/parameters/taskId'
+    post:
+      summary: Dispatch a task to an available provider agent
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 8, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartRun' }
+      responses:
+        '202':
+          description: Run queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Run' }
+        '409':
+          description: Provider unavailable or task already running
+  /v1/tasks/{taskId}/events:
+    parameters:
+      - $ref: '#/components/parameters/taskId'
+    get:
+      summary: Read task event history
+      parameters:
+        - in: query
+          name: after
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        '200':
+          description: Ordered events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TaskEvent' }
+  /v1/events/stream:
+    get:
+      summary: Subscribe to live factory events
+      parameters:
+        - in: query
+          name: after
+          schema: { type: string }
+      responses:
+        '200':
+          description: Server-sent events
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /v1/agents:
+    get:
+      summary: List agent roles and live capability status
+      responses:
+        '200':
+          description: Agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Agent' }
+  /v1/providers:
+    get:
+      summary: Provider health and capability discovery
+      responses:
+        '200':
+          description: Providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Provider' }
+  /v1/approvals:
+    get:
+      summary: List approvals requiring a human decision
+      responses:
+        '200':
+          description: Approvals
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Approval' }
+  /v1/approvals/{approvalId}/decision:
+    post:
+      summary: Approve or deny a protected action
+      parameters:
+        - in: path
+          name: approvalId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [approve, deny] }
+                comment: { type: string, maxLength: 2000 }
+      responses:
+        '200':
+          description: Decision recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Approval' }
+        '404':
+          description: Approval not found
+  /v1/artifacts/{artifactId}:
+    get:
+      summary: Get authorized artifact metadata and temporary download URL
+      parameters:
+        - in: path
+          name: artifactId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Artifact metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Artifact' }
+        '404':
+          description: Artifact not found
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    taskId:
+      in: path
+      name: taskId
+      required: true
+      schema: { type: string }
+  schemas:
+    Project:
+      type: object
+      required: [id, name, repository]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        repository: { type: string }
+        defaultBranch: { type: string }
+    TaskStatus:
+      type: string
+      enum: [new, queued, accepted, planning, running, review, needs_approval, blocked, partial, failed, completed, cancelled]
+    Task:
+      type: object
+      required: [id, title, projectId, status, correlationId, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        brief: { type: string }
+        projectId: { type: string }
+        repository: { type: string }
+        priority: { type: string, enum: [low, normal, high, urgent] }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        correlationId: { type: string }
+        parentTaskId: { type: [string, 'null'] }
+        acceptanceCriteria:
+          type: array
+          items: { type: string }
+        branch: { type: [string, 'null'] }
+        pullRequestUrl: { type: [string, 'null'], format: uri }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateTask:
+      type: object
+      required: [title, projectId, brief, acceptanceCriteria]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        projectId: { type: string }
+        brief: { type: string, minLength: 1, maxLength: 20000 }
+        priority: { type: string, enum: [low, normal, high, urgent], default: normal }
+        acceptanceCriteria:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1, maxLength: 1000 }
+        preferredProvider: { type: [string, 'null'] }
+        preferredRole: { type: [string, 'null'] }
+    TaskPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Task' }
+        nextCursor: { type: [string, 'null'] }
+    StartRun:
+      type: object
+      required: [role]
+      properties:
+        role: { type: string }
+        providerId: { type: [string, 'null'] }
+        modelId: { type: [string, 'null'] }
+        allowParallelSubagents: { type: boolean, default: false }
+    Run:
+      type: object
+      required: [id, taskId, providerId, status, createdAt]
+      properties:
+        id: { type: string }
+        taskId: { type: string }
+        providerId: { type: string }
+        modelId: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        branch: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+    TaskEvent:
+      type: object
+      required: [id, taskId, sequence, type, timestamp]
+      properties:
+        id: { type: string }
+        taskId: { type: string }
+        runId: { type: [string, 'null'] }
+        sequence: { type: integer, minimum: 1 }
+        type: { type: string }
+        timestamp: { type: string, format: date-time }
+        summary: { type: string }
+        data: { type: object, additionalProperties: true }
+    Agent:
+      type: object
+      required: [id, role, providerId, availability, capabilities]
+      properties:
+        id: { type: string }
+        role: { type: string }
+        providerId: { type: string }
+        availability: { type: string, enum: [available, busy, offline, degraded, unknown] }
+        modelId: { type: [string, 'null'] }
+        capabilities:
+          type: array
+          items: { type: string }
+    Provider:
+      type: object
+      required: [id, kind, status, checkedAt, capabilities]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [antigravity, claude, gemini, openai] }
+        status: { type: string, enum: [connected, degraded, disconnected, needs_auth, unknown] }
+        checkedAt: { type: string, format: date-time }
+        capabilities:
+          type: array
+          items: { type: string }
+    Approval:
+      type: object
+      required: [id, taskId, action, risk, status, createdAt]
+      properties:
+        id: { type: string }
+        taskId: { type: string }
+        action: { type: string }
+        target: { type: string }
+        risk: { type: string, enum: [low, medium, high, critical] }
+        status: { type: string, enum: [pending, approved, denied, expired] }
+        createdAt: { type: string, format: date-time }
+    Artifact:
+      type: object
+      required: [id, filename, mimeType, sizeBytes, sha256, downloadUrl, expiresAt]
+      properties:
+        id: { type: string }
+        filename: { type: string }
+        mimeType: { type: string }
+        sizeBytes: { type: integer, minimum: 0 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        downloadUrl: { type: string, format: uri }
+        expiresAt: { type: string, format: date-time }
