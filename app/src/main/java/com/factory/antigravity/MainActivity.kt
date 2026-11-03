@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,19 +38,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private data class BoardTask(
+internal data class BoardTask(
     val id: Long,
     val title: String,
     val details: String = "",
     val status: TaskStatus = TaskStatus.TODO
 )
 
-private enum class TaskStatus(val label: String) {
+internal enum class TaskStatus(val label: String) {
     TODO("To Do"),
     IN_PROGRESS("In Progress"),
     DONE("Done")
@@ -64,12 +66,26 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AntigravityApp() {
+    val context = LocalContext.current
+    val storage = remember(context) { TaskStorage(context) }
     val tasks = remember {
-        mutableStateListOf(
-            BoardTask(1, "Connect the factory", "Prepare the mobile workspace"),
-            BoardTask(2, "Build the first APK", "Set up the automated Android build", TaskStatus.IN_PROGRESS),
-            BoardTask(3, "Plan the next iteration", "Review the Kanban workflow", TaskStatus.DONE)
-        )
+        mutableStateListOf<BoardTask>().apply {
+            val saved = storage.load()
+            if (saved.isNotEmpty()) {
+                addAll(saved)
+            } else {
+                addAll(
+                    listOf(
+                        BoardTask(1, "Connect the factory", "Prepare the mobile workspace"),
+                        BoardTask(2, "Build the first APK", "Set up the automated Android build", TaskStatus.IN_PROGRESS),
+                        BoardTask(3, "Plan the next iteration", "Review the Kanban workflow", TaskStatus.DONE)
+                    )
+                )
+            }
+        }
+    }
+    LaunchedEffect(tasks.toList()) {
+        storage.save(tasks.toList())
     }
     var selectedStatus by rememberSaveable { mutableStateOf(TaskStatus.TODO.name) }
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
