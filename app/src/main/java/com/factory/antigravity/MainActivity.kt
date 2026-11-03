@@ -30,7 +30,7 @@ internal data class BoardTask(
 )
 
 internal enum class TaskStatus(val label: String) {
-    TODO("To Do"), IN_PROGRESS("In Progress"), DONE("Done");
+    TODO("Новые"), IN_PROGRESS("В работе"), DONE("Готово");
     fun next() = when (this) {
         TODO -> IN_PROGRESS
         IN_PROGRESS -> DONE
@@ -101,9 +101,13 @@ private fun AntigravityApp() {
                     TopAppBar(
                         title = {
                             Column {
-                                Text("⚡ Antigravity Mobile", fontWeight = FontWeight.Bold)
-                                Text("Universal AI Factory", style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    "⚡ Antigravity Mobile",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
                             }
                         },
                         actions = {
@@ -126,6 +130,20 @@ private fun AntigravityApp() {
             },
             floatingActionButton = {
                 FloatingActionButton(onClick = { showAddDialog = true }) { Text("+", fontSize = 26.sp) }
+            },
+            bottomBar = {
+                Surface(color = MaterialTheme.colorScheme.surface) {
+                    Text(
+                        "v0.2.1 · Задачи сохраняются на устройстве",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1
+                    )
+                }
             },
             containerColor = MaterialTheme.colorScheme.background
         ) { innerPadding ->
@@ -175,7 +193,7 @@ private fun AntigravityApp() {
                     LazyColumn(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 88.dp)
+                        contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
                         items(visibleTasks, key = { it.id }) { task ->
                             TaskCard(
@@ -207,10 +225,6 @@ private fun AntigravityApp() {
                         }
                     }
                 }
-                Text("v0.2.0 · Задачи сохраняются на устройстве",
-                    modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -277,9 +291,24 @@ private fun TaskCard(
                     }, maxLines = 1)
                 }
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onSend) { Text("Отправить в фабрику") }
-                TextButton(onClick = onDelete) { Text("Удалить", color = MaterialTheme.colorScheme.error) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onSend,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                ) {
+                    Text("В фабрику", maxLines = 1, softWrap = false)
+                }
+                TextButton(
+                    onClick = onDelete,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                ) {
+                    Text("Удалить", color = MaterialTheme.colorScheme.error, maxLines = 1, softWrap = false)
+                }
             }
         }
     }
