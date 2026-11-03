@@ -50,7 +50,7 @@ The official Android CLI plugin is a separate developer tool for Antigravity, Cl
 
 ## Factory API bootstrap
 
-See [factory-api/README.md](factory-api/README.md). The Cloudflare Worker + D1 bootstrap supports authenticated task create/list/detail and event history. Its deployment is manual and guarded by GitHub secrets. The Android app can save an HTTPS API address, encrypt a bearer token with Android Keystore, and test `/v1/health`. It does not yet submit tasks to the API. Provider dispatch intentionally returns `503 provider_not_configured` until a real agent worker is connected.
+See [factory-api/README.md](factory-api/README.md). The Cloudflare Worker + D1 bootstrap supports authenticated task create/list/detail and event history. Its deployment is manual and guarded by GitHub secrets. The Android app can save an HTTPS API address, encrypt a bearer token with Android Keystore, and test `/v1/health`. It can submit local Kanban tasks to the API with stable idempotency keys. Provider dispatch intentionally returns `503 provider_not_configured` until a real agent worker is connected.
 
 ## Build
 
