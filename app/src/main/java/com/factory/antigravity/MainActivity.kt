@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,8 +42,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 internal data class BoardTask(
     val id: Long,
@@ -68,6 +71,12 @@ class MainActivity : ComponentActivity() {
 private fun AntigravityApp() {
     val context = LocalContext.current
     val storage = remember(context) { TaskStorage(context) }
+    val connectionStore = remember(context) { SecureTokenStore(context) }
+    val coroutineScope = rememberCoroutineScope()
+    var showConnectionDialog by rememberSaveable { mutableStateOf(false) }
+    var connectionStatus by rememberSaveable {
+        mutableStateOf(if (connectionStore.baseUrl() != null) "Connection settings saved" else "Factory API not configured")
+    }
     val tasks = remember {
         mutableStateListOf<BoardTask>().apply {
             val saved = storage.load()
@@ -123,11 +132,35 @@ private fun AntigravityApp() {
                     color = Color(0xFF171A2B)
                 )
                 Spacer(Modifier.height(5.dp))
-                Text(
-                    text = "Universal AI Factory · Task board",
-                    color = Color(0xFF73778A),
-                    fontSize = 14.sp
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Universal AI Factory · Task board",
+                            color = Color(0xFF73778A),
+                            fontSize = 14.sp
+                        )
+                        Text(connectionStatus, color = Color(0xFF85899A), fontSize = 11.sp)
+                    }
+                    TextButton(onClick = { showConnectionDialog = true }) { Text("Connection") }
+                    TextButton(
+                        onClick = {
+                            val baseUrl = connectionStore.baseUrl()
+                            if (baseUrl.isNullOrBlank()) {
+                                connectionStatus = "Set the Factory API address first"
+                            } else {
+                                coroutineScope.launch {
+                                    connectionStatus = "Checking Factory API…"
+                                    connectionStatus = runCatching {
+                                        FactoryApiClient.health(baseUrl, connectionStore.readToken())
+                                    }.getOrElse { "Connection failed: ${it.message ?: "network error"}" }
+                                }
+                            }
+                        }
+                    ) { Text("Test") }
+                }
                 Spacer(Modifier.height(22.dp))
 
                 Row(
@@ -238,6 +271,24 @@ private fun AntigravityApp() {
         }
     }
 
+    if (showConnectionDialog) {
+        ConnectionSettingsDialog(
+            initialUrl = connectionStore.baseUrl().orEmpty(),
+            hasSavedToken = connectionStore.hasToken(),
+            onDismiss = { showConnectionDialog = false },
+            onSave = { baseUrl, token ->
+                runCatching { connectionStore.saveConnection(baseUrl, token) }
+                    .onSuccess {
+                        connectionStatus = "Connection settings saved"
+                        showConnectionDialog = false
+                    }
+                    .onFailure {
+                        connectionStatus = it.message ?: "Could not save connection settings"
+                    }
+            }
+        )
+    }
+
     if (showAddDialog) {
         AddTaskDialog(
             onDismiss = { showAddDialog = false },
@@ -248,6 +299,64 @@ private fun AntigravityApp() {
             }
         )
     }
+}
+
+@Composable
+private fun ConnectionSettingsDialog(
+    initialUrl: String,
+    hasSavedToken: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit
+) {
+    var baseUrl by rememberSaveable { mutableStateOf(initialUrl) }
+    var token by rememberSaveable { mutableStateOf("") }
+    var validationMessage by rememberSaveable { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Factory API connection") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = baseUrl,
+                    onValueChange = { baseUrl = it; validationMessage = "" },
+                    label = { Text("API HTTPS address") },
+                    placeholder = { Text("https://your-worker.example.workers.dev") },
+                    singleLine = true
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    label = { Text("Bearer token") },
+                    placeholder = { Text(if (hasSavedToken) "Leave empty to keep saved token" else "Paste private token") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "The token is encrypted with Android Keystore and is not included in backups. Do not send it in chat.",
+                    color = Color(0xFF777C8F),
+                    fontSize = 12.sp
+                )
+                if (validationMessage.isNotBlank()) {
+                    Text(validationMessage, color = Color(0xFFB14D5A), fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (baseUrl.isBlank()) {
+                        validationMessage = "Enter the HTTPS API address."
+                    } else {
+                        onSave(baseUrl.trim(), token)
+                    }
+                }
+            ) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable
