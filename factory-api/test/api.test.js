@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import worker from "../src/index.js";
 
 const allowedOrigin = "https://mobile.example.test";
@@ -87,7 +88,7 @@ test("task creation rejects a body over 256 KB even without Content-Length", asy
       },
       body: JSON.stringify({ title: "Large", brief: "x".repeat(257_000), projectId: "test", acceptanceCriteria: ["test"] })
     }),
-    { DB: {}, API_TOKEN_SHA256: "not-the-token-digest", CORS_ORIGIN: allowedOrigin }
+    { DB: {}, API_TOKEN_SHA256: createHash("sha256").update("0123456789abcdef0123456789abcdef").digest("hex"), CORS_ORIGIN: allowedOrigin }
   );
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 413);
 });
