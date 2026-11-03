@@ -1,0 +1,77 @@
+name: Deploy Factory API
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: factory-api-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: factory-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate deployment configuration
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FACTORY_D1_DATABASE_ID: ${{ secrets.FACTORY_D1_DATABASE_ID }}
+          FACTORY_API_TOKEN_SHA256: ${{ secrets.FACTORY_API_TOKEN_SHA256 }}
+          FACTORY_API_CORS_ORIGIN: ${{ vars.FACTORY_API_CORS_ORIGIN }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$FACTORY_D1_DATABASE_ID"
+          test -n "$FACTORY_API_TOKEN_SHA256"
+          [[ "$FACTORY_API_TOKEN_SHA256" =~ ^[a-fA-F0-9]{64}$ ]]
+          [[ "$FACTORY_D1_DATABASE_ID" =~ ^[a-fA-F0-9-]{36}$ ]]
+          [[ "$FACTORY_API_CORS_ORIGIN" =~ ^https://[^*]+$ ]]
+          echo "Required deployment settings are present."
+      - run: npm install
+      - run: npm run check
+      - run: npm test
+      - name: Configure D1 and allowed origin
+        env:
+          FACTORY_D1_DATABASE_ID: ${{ secrets.FACTORY_D1_DATABASE_ID }}
+          FACTORY_API_CORS_ORIGIN: ${{ vars.FACTORY_API_CORS_ORIGIN }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const path = "wrangler.toml";
+          let config = fs.readFileSync(path, "utf8");
+          config = config.replace("00000000-0000-0000-0000-000000000000", process.env.FACTORY_D1_DATABASE_ID);
+          config = config.replace("https://replace-with-your-owned-domain.example", process.env.FACTORY_API_CORS_ORIGIN);
+          if (config.includes("00000000-0000-0000-0000-000000000000") ||
+              config.includes("https://replace-with-your-owned-domain.example")) {
+            throw new Error("Deployment placeholders were not replaced.");
+          }
+          fs.writeFileSync(path, config);
+          NODE
+      - name: Apply D1 migrations
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 migrations apply universal-ai-factory --remote
+      - name: Set API token digest
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FACTORY_API_TOKEN_SHA256: ${{ secrets.FACTORY_API_TOKEN_SHA256 }}
+        run: printf '%s' "$FACTORY_API_TOKEN_SHA256" | npx wrangler secret put API_TOKEN_SHA256
+      - name: Deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
