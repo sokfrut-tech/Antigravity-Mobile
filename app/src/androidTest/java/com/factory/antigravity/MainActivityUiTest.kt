@@ -32,7 +32,7 @@ class MainActivityUiTest {
         composeRule.onNodeWithText("← Назад").assertIsDisplayed()
         composeRule.onNodeWithText("⚡ Фабрика").assertIsDisplayed()
         composeRule.onNodeWithText("Удалить").assertIsDisplayed()
-        composeRule.onNodeWithText("Новые (1)").assertIsDisplayed()
+        composeRule.onNodeWithText("Новые (2)").assertIsDisplayed()
         composeRule.onNodeWithText("В работе (1)").performClick()
         composeRule.onNodeWithText("Собрать первый APK").assertIsDisplayed()
         composeRule.onNodeWithText("Готово (1)").performClick()
