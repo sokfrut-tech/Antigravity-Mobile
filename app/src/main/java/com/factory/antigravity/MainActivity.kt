@@ -111,7 +111,7 @@ private fun AntigravityApp() {
                             }
                         },
                         actions = {
-                            TextButton(onClick = { showConnectionDialog = true }) { Text("Подключение") }
+                            TextButton(onClick = { showConnectionDialog = true }) { Text("API") }
                         }
                     )
                     TabRow(selectedTabIndex = statuses.indexOf(selectedStatus)) {
