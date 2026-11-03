@@ -63,6 +63,38 @@ function validString(value, min, max) {
   return typeof value === "string" && value.trim().length >= min && value.length <= max;
 }
 
+async function readJsonBodyLimited(request, maxBytes) {
+  if (!request.body) return { invalid: true };
+  const reader = request.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return { tooLarge: true };
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return { body: JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) };
+  } catch {
+    return { invalid: true };
+  }
+}
+
 function parseTask(row) {
   return {
     id: row.id,
@@ -85,10 +117,10 @@ async function createTask(request, env, userId) {
   const key = request.headers.get("Idempotency-Key");
   if (!validString(key, 8, 128)) return error("invalid_idempotency_key", "Idempotency-Key (8–128 chars) is required.", 400);
 
-  const contentLength = Number(request.headers.get("Content-Length") || 0);
-  if (contentLength > 256_000) return error("payload_too_large", "Request body exceeds 256 KB.", 413);
-  let body;
-  try { body = await request.json(); } catch { return error("invalid_json", "Request body must be valid JSON.", 400); }
+  const parsed = await readJsonBodyLimited(request, 256_000);
+  if (parsed.tooLarge) return error("payload_too_large", "Request body exceeds 256 KB.", 413);
+  if (parsed.invalid) return error("invalid_json", "Request body must be valid UTF-8 JSON.", 400);
+  const body = parsed.body;
   if (!body || typeof body !== "object" || Array.isArray(body)) return error("invalid_task", "Request body must be a JSON object.", 400);
   if (!validString(body.title, 1, 200) ||
       !validString(body.brief, 1, 20000) ||
