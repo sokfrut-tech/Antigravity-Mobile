@@ -52,6 +52,7 @@ internal class SecureTokenStore(context: Context) {
             val iv = payload.copyOfRange(0, IV_LENGTH)
             val ciphertext = payload.copyOfRange(IV_LENGTH, payload.size)
             val cipher = Cipher.getInstance(TRANSFORMATION)
+            // nosemgrep: kotlin.lang.security.gcm-detection.gcm-detection — this is the matching decrypt operation for the stored ciphertext and its authenticated IV, not a new encryption using a reused nonce.
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(TAG_BITS, iv))
             String(cipher.doFinal(ciphertext), Charsets.UTF_8)
         }.getOrNull()
