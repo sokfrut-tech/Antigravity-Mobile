@@ -19,7 +19,7 @@ class MainActivityUiTest {
     fun userCanOpenConnectionSettingsAndCreateTask() {
         composeRule.onNodeWithText("Antigravity Mobile", substring = true).assertIsDisplayed()
 
-        composeRule.onNodeWithText("Подключение").performClick()
+        composeRule.onNodeWithText("API").performClick()
         composeRule.onNodeWithText("Подключение к Factory API").assertIsDisplayed()
         composeRule.onNodeWithText("Отмена").performClick()
 
@@ -29,5 +29,10 @@ class MainActivityUiTest {
         composeRule.onNodeWithText("Создать").performClick()
 
         composeRule.onNodeWithText("Проверка на Android-эмуляторе").assertIsDisplayed()
+        composeRule.onNodeWithText("Новые (1)").assertIsDisplayed()
+        composeRule.onNodeWithText("В работе (1)").performClick()
+        composeRule.onNodeWithText("Собрать первый APK").assertIsDisplayed()
+        composeRule.onNodeWithText("Готово (1)").performClick()
+        composeRule.onNodeWithText("Проверить рабочий процесс").assertIsDisplayed()
     }
 }
