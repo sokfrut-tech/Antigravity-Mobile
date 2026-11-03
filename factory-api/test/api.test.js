@@ -60,7 +60,7 @@ test("unlisted browser origin is rejected", async () => {
 
 test("task endpoints reject requests without a bearer token", async () => {
   const response = await worker.fetch(
-    new Request("https://api.example.test/v1/tasks"),
+    new Request("https://api.example.test/v1/tasks", { headers: { Origin: allowedOrigin } }),
     { DB: {}, API_TOKEN_SHA256: "configured", CORS_ORIGIN: allowedOrigin }
   );
   assert.equal(response.status, 401);
