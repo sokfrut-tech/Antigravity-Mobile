@@ -1,0 +1,13 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "universal-ai-factory-mobile",
+  "displayName": "Universal AI Factory — Mobile",
+  "version": "0.1.0",
+  "description": "Shared skills, agent roles and safety rules for building and operating Antigravity Mobile with Universal AI Factory.",
+  "suggestedPrompts": [
+    "Use the factory-orchestration skill to plan and dispatch a task",
+    "Use the android-mobile-engineering skill to implement an Android feature",
+    "Use the github-factory-coordination skill to exchange a task with Universal AI Factory",
+    "Run an independent QA and security review before release"
+  ]
+}
