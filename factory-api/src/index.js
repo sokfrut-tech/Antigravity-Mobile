@@ -219,6 +219,11 @@ export default {
     const cors = corsHeaders(request, env);
     if (!cors) return error("origin_not_allowed", "Configure CORS_ORIGIN to the exact allowed HTTPS origin.", 403);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+    const respond = response => {
+      const headers = new Headers(response.headers);
+      for (const [name, value] of Object.entries(cors)) headers.set(name, value);
+      return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+    };
 
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
@@ -232,29 +237,29 @@ export default {
           healthy = false;
         }
       }
-      return json({ status: healthy ? "ok" : "degraded", apiVersion: "1.0.0" }, 200, cors);
+      return respond(json({ status: healthy ? "ok" : "degraded", apiVersion: "1.0.0" }));
     }
-    if (!["GET", "POST"].includes(request.method)) return error("method_not_allowed", "Method not allowed.", 405);
+    if (!["GET", "POST"].includes(request.method)) return respond(error("method_not_allowed", "Method not allowed.", 405));
 
     const userId = await authenticate(request, env);
-    if (!userId) return error("unauthorized", "A valid bearer token is required.", 401);
-    if (!env.DB) return error("service_unavailable", "D1 database binding is missing.", 503);
+    if (!userId) return respond(error("unauthorized", "A valid bearer token is required.", 401));
+    if (!env.DB) return respond(error("service_unavailable", "D1 database binding is missing.", 503));
 
     try {
-      if (path === "/v1/tasks" && request.method === "GET") return await listTasks(url, env, userId);
-      if (path === "/v1/tasks" && request.method === "POST") return await createTask(request, env, userId);
+      if (path === "/v1/tasks" && request.method === "GET") return respond(await listTasks(url, env, userId));
+      if (path === "/v1/tasks" && request.method === "POST") return respond(await createTask(request, env, userId));
       const match = /^\/v1\/tasks\/([0-9a-f-]{36})(?:\/(events|runs))?$/.exec(path);
       if (match) {
         const [, id, child] = match;
-        if (child === "events" && request.method === "GET") return await getEvents(id, url, env, userId);
+        if (child === "events" && request.method === "GET") return respond(await getEvents(id, url, env, userId));
         if (child === "runs" && request.method === "POST") {
-          return error("provider_not_configured", "No provider worker is connected yet; task dispatch is intentionally disabled.", 503);
+          return respond(error("provider_not_configured", "No provider worker is connected yet; task dispatch is intentionally disabled.", 503));
         }
-        if (!child && request.method === "GET") return await getTask(id, env, userId);
+        if (!child && request.method === "GET") return respond(await getTask(id, env, userId));
       }
-      return error("not_found", "Endpoint not found.", 404);
+      return respond(error("not_found", "Endpoint not found.", 404));
     } catch {
-      return error("internal_error", "Unexpected server error. No internal details were exposed.", 500);
+      return respond(error("internal_error", "Unexpected server error. No internal details were exposed.", 500));
     }
   }
 };
