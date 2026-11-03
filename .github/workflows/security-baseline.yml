@@ -35,7 +35,7 @@ jobs:
             -e GIT_CONFIG_VALUE_0=/repo \
             -v "$PWD:/repo" \
             zricethezav/gitleaks:v8.24.2 \
-            git --source=/repo --redact --report-format sarif --report-path=/repo/gitleaks.sarif
+            git --redact --report-format sarif --report-path=/repo/gitleaks.sarif /repo
       - name: Archive redacted Gitleaks report
         if: always() && hashFiles('gitleaks.sarif') != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
