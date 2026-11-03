@@ -1,0 +1,22 @@
+name = "universal-ai-factory-api"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "universal-ai-factory"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+[vars]
+# Set this to the exact HTTPS origin hosting the Android web login/callback if used.
+# Native Android requests can use a dedicated origin policy; do not use "*".
+CORS_ORIGIN = "https://replace-with-your-owned-domain.example"
+
+# Secrets required:
+#   API_TOKEN_SHA256 = SHA-256 hex digest of a long random bearer token.
+# Set with: npx wrangler secret put API_TOKEN_SHA256
+# Never put the raw token in this file, Git, APK resources, or logs.
+
+[observability]
+enabled = true
