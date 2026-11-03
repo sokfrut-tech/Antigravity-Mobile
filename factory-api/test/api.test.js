@@ -64,6 +64,7 @@ test("task endpoints reject requests without a bearer token", async () => {
     { DB: {}, API_TOKEN_SHA256: "configured", CORS_ORIGIN: allowedOrigin }
   );
   assert.equal(response.status, 401);
+  assert.equal(response.headers.get("access-control-allow-origin"), allowedOrigin);
   assert.deepEqual(await response.json(), {
     error: { code: "unauthorized", message: "A valid bearer token is required." }
   });
