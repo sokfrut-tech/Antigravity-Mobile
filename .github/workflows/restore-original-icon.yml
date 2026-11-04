@@ -1,0 +1,64 @@
+name: Restore original Antigravity Mobile launcher artwork
+on:
+  push:
+    branches:
+      - fix/original-launcher-icon-2026-11-04
+    paths:
+      - .github/workflows/restore-original-icon.yml
+permissions:
+  contents: write
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download original user artwork
+        run: |
+          curl -fL "https://raw.githubusercontent.com/sokfrut-tech/Universal-AI-Factory/main/shared-assets/reference-images/a1c26558cc356f59dcc775543ade83f1d306697dd1509f3fdeaf397333ee685e.png" -o /tmp/original.png
+      - name: Generate Android launcher icon densities
+        run: |
+          python -m pip install --quiet pillow
+          python - <<'PY'
+          from PIL import Image, ImageDraw
+          from pathlib import Path
+          import math
+          src = Image.open('/tmp/original.png').convert('RGBA')
+          # Remove only the white canvas around the supplied rounded-square artwork.
+          px = src.load()
+          xs=[]; ys=[]
+          for y in range(src.height):
+              for x in range(src.width):
+                  r,g,b,a=px[x,y]
+                  if min(r,g,b) < 238:
+                      xs.append(x); ys.append(y)
+          box=(min(xs),min(ys),max(xs)+1,max(ys)+1)
+          art=src.crop(box)
+          # Keep original logo and typography intact; trim only exterior white canvas.
+          # Legacy launcher sizes use the complete original composition.
+          root=Path('app/src/main/res')
+          for density,size in [('mdpi',48),('hdpi',72),('xhdpi',96),('xxhdpi',144),('xxxhdpi',192)]:
+              d=root/f'mipmap-{density}'; d.mkdir(parents=True,exist_ok=True)
+              art.resize((size,size),Image.Resampling.LANCZOS).save(d/'ic_launcher.png',optimize=True)
+              art.resize((size,size),Image.Resampling.LANCZOS).save(d/'ic_launcher_round.png',optimize=True)
+          # Adaptive foreground: artwork scaled into the Android safe zone on transparent canvas.
+          canvas=Image.new('RGBA',(432,432),(0,0,0,0))
+          art.thumbnail((360,360),Image.Resampling.LANCZOS)
+          canvas.alpha_composite(art,((432-art.width)//2,(432-art.height)//2))
+          for density,size in [('mdpi',108),('hdpi',162),('xhdpi',216),('xxhdpi',324),('xxxhdpi',432)]:
+              d=root/f'mipmap-{density}'; d.mkdir(parents=True,exist_ok=True)
+              canvas.resize((size,size),Image.Resampling.LANCZOS).save(d/'ic_launcher_foreground.png',optimize=True)
+          print('Generated launcher artwork from original source:',src.size,'crop:',box)
+          PY
+      - name: Point adaptive icon at original artwork
+        run: |
+          sed -i 's#@drawable/ic_launcher_foreground#@mipmap/ic_launcher_foreground#' app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+      - name: Commit generated launcher resources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/res
+          git commit -m "fix: restore original Antigravity Mobile launcher artwork"
+          git push
