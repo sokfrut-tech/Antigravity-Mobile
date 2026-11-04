@@ -68,3 +68,19 @@ The older task-level runner event endpoint is retained for progress/status compa
 ## Guarded lifecycle design
 
 The next lifecycle mutation work is specified in [`PROVIDER_RUN_TRANSITIONS.md`](./PROVIDER_RUN_TRANSITIONS.md). It defines compare-and-set transitions, atomic event recording, the disabled completion/reconciliation/cancellation gates, and required real-D1 concurrency tests. No lifecycle mutation endpoint is enabled yet.
+
+
+## Guarded run lifecycle endpoint
+
+A runner-only `POST /v1/runs/:runId/transitions` endpoint now supports a deliberately limited transition graph. It uses an expected-current-status compare-and-set update and appends the corresponding immutable run event in the same D1 batch. A third conditional statement forces a constraint failure (and therefore batch rollback) if a status update occurred but its audit event was not inserted. A stale expected status causes no mutation and returns a conflict.
+
+Enabled transitions:
+- `claimed -> dispatching`
+- `dispatching -> accepted` (requires a bounded provider request ID supplied by the trusted runner)
+- `dispatching -> failed` (requires definite-rejection classification and bounded reason code)
+- `dispatching -> outcome_unknown` (requires a recognized ambiguity classification)
+- `accepted -> running/review/outcome_unknown`
+- `running -> review/failed/outcome_unknown`
+- `review -> failed`
+
+Completion, cancellation, reconciliation from `outcome_unknown`, and retry authorization remain disabled. The endpoint does not contact a provider and does not independently verify provider request IDs; the trusted orchestrator must only submit acceptance after validating the provider response. Unit tests cover auth, disabled completion, required evidence fields, compare-and-set SQL, audit insertion, rollback guard and stale status. These tests use a D1 adapter test double; actual local D1 concurrency/rollback integration tests remain required before deployment.
