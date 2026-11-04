@@ -305,8 +305,9 @@ export default {
     const runnerRunMatch = /^\/v1\/tasks\/([0-9a-f-]{36})\/runs$/.exec(path);
     if (runnerRunMatch && request.method === "POST") {
       const expected = env.FACTORY_RUNNER_TOKEN;
-      const supplied = (request.headers.get("Authorization") || "").replace(/^Bearer /, "");
-      if (!expected || !constantTimeEqual(supplied, expected)) {
+      const match = /^Bearer ([A-Za-z0-9._~-]{32,512})$/.exec(request.headers.get("Authorization") || "");
+      const supplied = match?.[1] || "";
+      if (!expected || !match || !constantTimeEqual(supplied, expected)) {
         return respond(error("unauthorized_runner", "A valid factory runner credential is required.", 401));
       }
       // Authentication boundary is established; provider dispatch remains intentionally disabled.
