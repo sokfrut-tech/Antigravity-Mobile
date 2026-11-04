@@ -93,3 +93,30 @@ test("task creation rejects a body over 256 KB even without Content-Length", asy
   );
   assert.equal(response.status, 413);
 });
+
+
+test("runner events require a separate runner credential", async () => {
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/events", {
+      method: "POST",
+      headers: { Origin: allowedOrigin, Authorization: "Bearer owner-token" },
+      body: JSON.stringify({ type: "progress", summary: "Working", progressPercent: 25 })
+    }),
+    { DB: {}, API_TOKEN_SHA256: createHash("sha256").update("0123456789abcdef0123456789abcdef").digest("hex"),
+      FACTORY_RUNNER_TOKEN: "runner-secret-value", CORS_ORIGIN: allowedOrigin }
+  );
+  assert.equal(response.status, 401);
+});
+
+test("runner event rejects out-of-range progress", async () => {
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/events", {
+      method: "POST",
+      headers: { Origin: allowedOrigin, Authorization: "Bearer runner-secret-value" },
+      body: JSON.stringify({ type: "progress", summary: "Working", progressPercent: 140 })
+    }),
+    { DB: {}, FACTORY_RUNNER_TOKEN: "runner-secret-value", CORS_ORIGIN: allowedOrigin }
+  );
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error.code, "invalid_progress");
+});
