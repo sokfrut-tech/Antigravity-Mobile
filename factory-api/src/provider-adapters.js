@@ -105,6 +105,7 @@ export async function executeProvider({ provider, model, prompt, env, fetchImpl 
   try {
     response = await fetchImpl(endpoint, {
       method: "POST",
+      redirect: "error",
       headers,
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(25_000)
