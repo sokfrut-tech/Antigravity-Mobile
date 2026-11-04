@@ -21,6 +21,34 @@ export function providerAvailability(env) {
   }));
 }
 
+async function readResponseTextLimited(response, maxBytes) {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error("provider_response_too_large");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+
 function extractText(provider, body) {
   if (provider === "claude") {
     return (body.content || []).filter(part => part.type === "text").map(part => part.text || "").join("\n").trim();
@@ -79,7 +107,7 @@ export async function executeProvider({ provider, model, prompt, env, fetchImpl 
       method: "POST",
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(55_000)
+      signal: AbortSignal.timeout(25_000)
     });
   } catch {
     throw Object.assign(new Error("Provider request ended without a confirmed response; outcome is unknown."), {
@@ -104,8 +132,7 @@ export async function executeProvider({ provider, model, prompt, env, fetchImpl 
 
   let data;
   try {
-    const raw = await response.text();
-    if (raw.length > 256_000) throw new Error("response_too_large");
+    const raw = await readResponseTextLimited(response, 256_000);
     data = JSON.parse(raw);
   } catch {
     throw Object.assign(new Error("Provider returned an unreadable response; outcome is unknown."), {
