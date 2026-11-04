@@ -2,7 +2,7 @@
 
 ## Integration branch and PR
 - Branch: `feat/antigravity-integrated-agent-runtime-2026-11-04`
-- PR: https://github.com/sokfrut-tech/Antigravity-Mobile/pull/18
+- PR: https://github.com/sokfrut-tech/Antigravity-Mobile/pull/19
 - Current merge commit: `18ead4dc1a2a762361276fda2a77650f3af8e8ce`
 - PR is draft; mergeable was recalculated as true. No merge or deployment.
 
@@ -34,9 +34,9 @@
 - Existing SQLite concurrency/rollback checks apply all migration files.
 
 ## Verification status
-- Exact integrated PR #18 head: `c4a6646a20c5446c57dbe96e4dc00a91bb5cba4d`.
+- Current integration PR: #19; current head `23ef613717728fcff430f69f86d0b90f60d2679c`.
 - PR mergeability: true after recalculation; base is current main, no behind commits.
-- Fresh PR checks for this integrated head: NOT TRIGGERED / NOT OBSERVED. PR #18 was updated and reopened, but GitHub Actions did not create PR-triggered runs for this branch. Do not treat main-only checks as integrated verification. The earlier standalone main-branch Factory API run does not cover the integration branch. Do not treat historical PR #14/#15 runs or the separate main-only provider-adapter unit run as verification of this integrated branch.
+- Fresh PR checks for this integrated head: NOT TRIGGERED / NOT OBSERVED. PR #19 was updated and reopened, but GitHub Actions did not create PR-triggered runs for this branch. Do not treat main-only checks as integrated verification. The earlier standalone main-branch Factory API run does not cover the integration branch. Do not treat historical PR #14/#15 runs or the separate main-only provider-adapter unit run as verification of this integrated branch.
 - Physical device test: NOT TESTED.
 - Live provider credentials/requests: NOT TESTED.
 - Cloudflare remote D1 migration and Worker deployment: NOT PERFORMED.
@@ -52,3 +52,14 @@
 
 ## Current branch safety note
 The integration branch was reconciled with current `main` using a two-parent merge commit; comparison now reports zero commits behind main and PR mergeability recalculated to true. The PR remains unmerged. The PR was briefly marked ready to see whether CI would start, but no PR-triggered workflow run appeared; it has been returned to draft until fresh verification is available.
+
+
+## Verification snapshot — 2026-11-04 18:24 UTC
+- Tested Android code commit: `798551378080eeefba68990e422150e75a89ac56`.
+- Android build + unit tests: PASS.
+- Compose emulator UI tests: 2/2 PASS.
+- Factory API test suite: 31/31 PASS on the same application integration state before the latest Gemini token-cap-only adapter update.
+- Security: Gitleaks, Semgrep, Trivy and CodeQL: PASS on the tested application commit.
+- Latest backend cost-control update: `71e8a345c0290a4865c4a7fbecc627756ed6834d` adds Gemini max_output_tokens=4096; corresponding provider test added in `23ef613717728fcff430f69f86d0b90f60d2679c`. Latest Factory API workflow is pending at the time of this snapshot; do not mark the final backend head fully verified until it passes.
+- APK artifact from Android run [41886066087](https://github.com/sokfrut-tech/Antigravity-Mobile/actions/runs/41886066087/artifacts/13350738496); extracted APK SHA-256: `6562feac3161fa815223d91ef386058ca237205e6433bb303d135a2676656257`; size 10,213,774 bytes; debug-signed; app version 0.3.0 / versionCode 5.
+- No provider keys configured, no live provider request, no Worker deployment, no remote D1 migration, no merge, and no physical OPPO test.
