@@ -108,6 +108,20 @@ test("runner events require a separate runner credential", async () => {
   assert.equal(response.status, 401);
 });
 
+
+test("runner events reject a raw token without the Bearer scheme", async () => {
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/tasks/00000000-0000-0000-0000-000000000000/events", {
+      method: "POST",
+      headers: { Origin: allowedOrigin, Authorization: runnerToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "progress", summary: "Should be rejected" })
+    }),
+    { DB: {}, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin }
+  );
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error.code, "unauthorized_runner");
+});
+
 test("runner event rejects out-of-range progress", async () => {
   const response = await worker.fetch(
     new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/events", {
