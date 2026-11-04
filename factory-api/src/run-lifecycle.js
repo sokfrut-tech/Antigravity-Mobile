@@ -156,10 +156,13 @@ export async function transitionProviderRun(request, runId, env) {
         `INSERT INTO task_run_events
          (id,run_id,task_id,sequence,type,timestamp,summary,data_json)
          SELECT NULL,NULL,NULL,1,'blocked',?,'Transition event guard failed','{}'
-         WHERE NOT EXISTS (
+         WHERE EXISTS (
+           SELECT 1 FROM task_runs WHERE id=? AND status=? AND updated_at=?
+         )
+         AND NOT EXISTS (
            SELECT 1 FROM task_run_events WHERE id=? AND run_id=?
          )`
-      ).bind(now, eventId, runId)
+      ).bind(now, runId, nextStatus, now, eventId, runId)
     ]);
     const changed = results?.[0]?.meta?.changes;
     if (changed !== 1) return error("stale_run_state", "Run was not changed: its current status differs from expectedStatus.", 409);
