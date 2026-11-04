@@ -14,14 +14,19 @@ This is the first backend implementation slice for Antigravity Mobile. It provid
 - Configure Cloudflare rate limiting for `/v1/*` before public exposure.
 - Do not expose this API publicly until the token is generated, stored as a Worker secret, and the D1 migration is applied.
 
+## Durable provider run ledger
+
+Migration `0002_task_runs.sql` adds a persistent run registry with unique `(task_id, run_key)` claims, provider request IDs, append-only run events and an `outcome_unknown` state. This is schema groundwork only: no provider dispatch endpoint is enabled by this migration. See `docs/PROVIDER_RUN_LEDGER.md` for the required atomic claim, timeout and retry rules.
+
 ## Endpoints
 
 - `GET /v1/health` — unauthenticated health.
 - `GET /v1/tasks` — authenticated task list.
 - `POST /v1/tasks` — authenticated task creation; requires `Idempotency-Key`.
 - `GET /v1/tasks/{uuid}` — task detail.
-- `GET /v1/tasks/{uuid}/events` — ordered event history for the mobile owner client.\n- `POST /v1/tasks/{uuid}/events` — append a validated progress/status event from a trusted runner only; requires the separate `FACTORY_RUNNER_TOKEN` secret.
-- `POST /v1/tasks/{uuid}/runs` — intentionally returns `503 provider_not_configured` until a real provider adapter exists.
+- `GET /v1/tasks/{uuid}/events` — ordered event history for the mobile owner client.\n- `POST /v1/tasks/{uuid}/events` — append non-terminal progress/status events from a trusted runner only; it cannot declare a task completed. Requires the separate `FACTORY_RUNNER_TOKEN` secret.
+- `POST /v1/tasks/{uuid}/runs` — creates an authenticated durable claim only; it does not contact Claude/Gemini. Requires `FACTORY_RUNNER_TOKEN`.
+- `POST /v1/runs/{uuid}/transitions` — runner-only compare-and-set transition with an append-only event in one D1 batch. Completion, cancellation, unknown-outcome reconciliation and retry remain disabled. Requires `FACTORY_RUNNER_TOKEN`.
 
 ## Deploy prerequisites
 
