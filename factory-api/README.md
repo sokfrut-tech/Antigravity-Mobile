@@ -46,7 +46,9 @@ Configure these in **Antigravity-Mobile → Settings → Secrets and variables �
 - `FACTORY_RUNNER_TOKEN` — a separate high-entropy secret used only for trusted lifecycle updates. Never put this token in the Android app or expose it to users.
 - `ANTHROPIC_API_KEY` — optional Claude API key.
 - `GEMINI_API_KEY` — optional Gemini API key.
-- `OPENAI_API_KEY` — optional OpenAI API key.\n
+- `OPENAI_API_KEY` — optional OpenAI API key.
+- `ALLOW_LIVE_PROVIDERS` — non-secret Worker variable; must be exactly `true` to permit live calls. Defaults to `false`. Each mobile task still requires a separate explicit cost acknowledgement before dispatch.
+
 Add provider keys as GitHub repository secrets. The manual deployment workflow copies any configured optional provider key into Cloudflare Worker secrets. If a GitHub secret is absent, the workflow leaves any existing Cloudflare Worker secret unchanged; remove a previously configured key explicitly with `wrangler secret delete KEY_NAME` only after owner approval. Do not paste keys into chat, Git, APK settings or logs.
 
 **Repository variable**
