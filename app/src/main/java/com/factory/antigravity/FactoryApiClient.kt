@@ -140,7 +140,8 @@ internal object FactoryApiClient {
         remoteTaskId: String,
         localTaskId: Long,
         title: String,
-        details: String
+        details: String,
+        attempt: Int
     ): TaskDispatchResult = withContext(Dispatchers.IO) {
         val normalized = baseUrl.trim().trimEnd('/')
         val uri = runCatching { URI(normalized) }.getOrNull()
@@ -153,7 +154,7 @@ internal object FactoryApiClient {
         val fingerprint = MessageDigest.getInstance("SHA-256")
             .digest("$title\\n$details".toByteArray(Charsets.UTF_8))
             .take(12).joinToString("") { "%02x".format(it) }
-        val runKey = "mobile-run-$localTaskId-$fingerprint"
+        val runKey = "mobile-run-$localTaskId-$fingerprint-$attempt"
         val body = JSONObject().put("runKey", runKey).put("provider", "auto").put("role", "implementer")
         val connection = (URL("$normalized/v1/tasks/$safeId/dispatch").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
