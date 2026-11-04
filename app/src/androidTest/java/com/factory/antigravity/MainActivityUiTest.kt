@@ -31,8 +31,8 @@ class MainActivityUiTest {
 
         composeRule.onNodeWithText("Проверка на Android-эмуляторе").assertIsDisplayed()
         composeRule.onAllNodesWithText("← Назад")[0].assertIsDisplayed()
-        composeRule.onNodeWithText("⚡ Фабрика").assertIsDisplayed()
-        composeRule.onNodeWithText("Удалить").assertIsDisplayed()
+        composeRule.onAllNodesWithText("⚡ Фабрика")[0].assertIsDisplayed()
+        composeRule.onAllNodesWithText("Удалить")[0].assertIsDisplayed()
         composeRule.onNodeWithText("Новые (2)").assertIsDisplayed()
         composeRule.onNodeWithText("В работе (1)").performClick()
         composeRule.onNodeWithText("Собрать первый APK").assertIsDisplayed()
