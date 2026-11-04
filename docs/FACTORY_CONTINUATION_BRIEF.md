@@ -41,3 +41,24 @@ Merge, auto-merge, production Worker deployment, remote D1 migration, secret cha
 
 ## Resume
 Read this brief, mobile roadmap `docs/MASTER_ROADMAP.md`, PR #17, then refresh #14/#15/#7 and CI. Continue from the next unblocked action. Claude/Gemini review is optional; if unavailable, ChatGPT implements and records external review NOT_RECEIVED.
+
+
+## Refreshed checkpoint — 2026-11-04 19:25 UTC
+
+- Main-branch Factory API bootstrap is now deployed at `https://universal-ai-factory-api.sokfrut.workers.dev`. Deployment run [41895896111](https://github.com/sokfrut-tech/Antigravity-Mobile/actions/runs/41895896111) succeeded on `51c45cdc39645efe49dda5160d5b7e7f14fb4b80`; D1 migrations 0002–0004 applied. Runtime `/v1/health` was not independently checked.
+- Main-branch API does not yet expose provider dispatch. Do not infer provider connectivity from the successful deployment.
+- New integration PR [#19](https://github.com/sokfrut-tech/Antigravity-Mobile/pull/19), branch `feat/antigravity-integrated-agent-runtime-final-2026-11-04`, head `7a4c7e24e46f0f87018501b9edea59cfd6be4f31`, is open Draft and mergeable.
+- Exact-head checks passed: Android build/unit/Compose emulator [41894926976](https://github.com/sokfrut-tech/Antigravity-Mobile/actions/runs/41894926976), Factory API/SQLite/D1 migration/concurrency [41894926000](https://github.com/sokfrut-tech/Antigravity-Mobile/actions/runs/41894926000), security gate [41894926673](https://github.com/sokfrut-tech/Antigravity-Mobile/actions/runs/41894926673).
+- PR #19 contains the first integrated server-side Claude/Gemini/OpenAI dispatch path, but provider credentials have not been verified with live calls. It requires explicit user acknowledgement of potentially billable provider usage. Do not merge, deploy or invoke paid providers without owner approval.
+- Documentation correction PR [#20](https://github.com/sokfrut-tech/Antigravity-Mobile/pull/20) updates README and factory-api README to record the successful bootstrap deployment, actual capability boundary and PR #19 evidence. It is open Draft.
+- The deploy log showed `CORS_ORIGIN=https://localhost`; review this before introducing browser-based clients. Native Android HTTPS requests are not subject to browser CORS enforcement.
+- Physical device / OPPO validation remains NOT TESTED. No Google Play release is planned.
+
+## Revised next actions
+
+1. Review PR #19 provider adapter lifecycle, billing acknowledgement, output privacy, retry rules and `outcome_unknown`; keep it Draft until review is complete.
+2. Independently verify the deployed `GET /v1/health` endpoint and Android secure connection from the app; do not put bearer tokens in chat.
+3. Review CORS origin and rate limiting before any browser client or broader exposure.
+4. Reconcile PR #17 shell, #14 Fallout UI, #15 durable ledger and #7 security with PR #19 without dropping commits; preserve local task data and Keystore behavior.
+5. Run fresh combined CI and install the resulting APK on a real Android device; record OPPO-specific checks as NOT_TESTED until performed.
+6. Only after owner approval, consider merge/deployment and any live provider call. Provider API usage may be billable.
