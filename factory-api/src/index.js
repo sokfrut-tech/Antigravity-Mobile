@@ -296,7 +296,7 @@ export default {
     }
     if (!["GET", "POST"].includes(request.method)) return respond(error("method_not_allowed", "Method not allowed.", 405));
 
-    const runnerEventMatch = /^\\/v1\\/tasks\\/([0-9a-f-]{36})\\/events$/.exec(path);
+    const runnerEventMatch = /^\/v1\/tasks\/([0-9a-f-]{36})\/events$/.exec(path);
     if (runnerEventMatch && request.method === "POST") {
       if (!env.DB) return respond(error("service_unavailable", "D1 database binding is missing.", 503));
       return respond(await recordRunnerEvent(request, runnerEventMatch[1], env));
