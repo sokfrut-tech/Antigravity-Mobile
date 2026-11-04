@@ -47,7 +47,8 @@ internal class TaskStorage(context: Context) {
                     .put("title", task.title)
                     .put("details", task.details)
                     .put("status", task.status.name)
-                    .put("progressPercent", task.progressPercent)\n                    .put("remoteTaskId", task.remoteTaskId)
+                    .put("progressPercent", task.progressPercent)
+                    .put("remoteTaskId", task.remoteTaskId)
             )
         }
         preferences.edit().putString(KEY_TASKS, array.toString()).apply()
