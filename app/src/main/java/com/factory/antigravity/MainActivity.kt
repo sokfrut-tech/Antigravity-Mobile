@@ -4,6 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,16 +59,12 @@ internal enum class TaskStatus(val label: String) {
 }
 
 private val AntigravityDarkColors = darkColorScheme(
-    primary = Color(0xFFB8C2FF),
-    onPrimary = Color(0xFF17245C),
-    secondary = Color(0xFFB9C7E8),
-    background = Color(0xFF10131C),
-    onBackground = Color(0xFFE7E9F2),
-    surface = Color(0xFF191E2A),
-    onSurface = Color(0xFFE7E9F2),
-    surfaceVariant = Color(0xFF252C3B),
-    onSurfaceVariant = Color(0xFFC4CAD9),
-    outline = Color(0xFF596276)
+    primary = Color(0xFF8BFF4A), onPrimary = Color(0xFF10210B),
+    secondary = Color(0xFFE0AE45), onSecondary = Color(0xFF241707),
+    background = Color(0xFF09130F), onBackground = Color(0xFFE9E4D1),
+    surface = Color(0xFF101D17), onSurface = Color(0xFFE9E4D1),
+    surfaceVariant = Color(0xFF1A2A20), onSurfaceVariant = Color(0xFFB8B99E),
+    outline = Color(0xFF80633A)
 )
 
 class MainActivity : ComponentActivity() {
@@ -135,6 +136,10 @@ private fun AntigravityApp() {
 
     MaterialTheme(colorScheme = AntigravityDarkColors) {
         Scaffold(
+            modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF14231B), Color(0xFF09110E), Color(0xFF1B160E)))).drawBehind {
+                drawCircle(Color(0xFF8BFF4A).copy(alpha = 0.035f), radius = size.width * 0.72f, center = Offset(size.width * 0.92f, size.height * 0.18f), style = Stroke(width = 2.dp.toPx()))
+                drawCircle(Color(0xFFE0AE45).copy(alpha = 0.045f), radius = size.width * 0.48f, center = Offset(size.width * 0.02f, size.height * 0.82f), style = Stroke(width = 1.dp.toPx()))
+            },
             topBar = {
                 Column {
                     TopAppBar(
@@ -175,7 +180,7 @@ private fun AntigravityApp() {
                 }
             },
             floatingActionButton = {
-                FloatingActionButton(onClick = { showAddDialog = true }) { Text("+", fontSize = 26.sp) }
+                FloatingActionButton(onClick = { showAddDialog = true }, containerColor = Color(0xFF8BFF4A), contentColor = Color(0xFF10210B)) { Text("+", fontSize = 26.sp, fontWeight = FontWeight.Black) }
             },
             bottomBar = {
                 Surface(color = MaterialTheme.colorScheme.surface) {
@@ -191,7 +196,7 @@ private fun AntigravityApp() {
                     )
                 }
             },
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = Color.Transparent
         ) { innerPadding ->
             val visibleTasks = tasks.filter { it.status == selectedStatus }
             Column(
@@ -318,14 +323,15 @@ private fun TaskCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.border(1.dp, Color(0xFF80633A).copy(alpha = 0.85f), RoundedCornerShape(18.dp)),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xE6192A20)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFFF0D99B))
                 }
                 if (task.isRunning || task.progressPercent != null || task.status == TaskStatus.DONE) {
                     Spacer(Modifier.width(10.dp))
