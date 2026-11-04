@@ -117,4 +117,7 @@ test("D1 migration rejects cross-task events and event updates", async () => {
     VALUES('wrong-owner',?,'other-task',2,'blocked',?,'Bad','{}')`)
     .bind(runId,timestamp).run());
   await assert.rejects(DB.prepare("UPDATE task_run_events SET summary='rewritten' WHERE id='event-claimed'").run());
+  await assert.rejects(DB.prepare("DELETE FROM task_run_events WHERE id='event-claimed'").run());
+  const retained = await DB.prepare("SELECT COUNT(*) AS count FROM task_run_events WHERE id='event-claimed'").first();
+  assert.equal(retained.count,1);
 });
