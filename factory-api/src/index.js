@@ -297,19 +297,16 @@ async function recordRunnerEvent(request, id, env) {
     return error("invalid_event", "Event body must be a JSON object.", 400);
   }
   const body = parsed.body;
-  const allowedTypes = new Set(["progress", "status", "log", "completed", "failed"]);
+  const allowedTypes = new Set(["progress", "status", "log", "failed"]);
   if (!allowedTypes.has(body.type)) return error("invalid_event_type", "Unsupported runner event type.", 400);
   if (!validString(body.summary, 1, 500)) return error("invalid_summary", "A short event summary is required.", 400);
   if (body.progressPercent != null &&
       (!Number.isInteger(body.progressPercent) || body.progressPercent < 0 || body.progressPercent > 100)) {
     return error("invalid_progress", "progressPercent must be an integer from 0 to 100.", 400);
   }
-  const allowedStatuses = new Set(["queued", "accepted", "planning", "running", "review", "needs_approval", "blocked", "partial", "failed", "completed", "cancelled"]);
+  const allowedStatuses = new Set(["queued", "accepted", "planning", "running", "review", "needs_approval", "blocked", "partial", "failed", "cancelled"]);
   if (body.status != null && !allowedStatuses.has(body.status)) {
     return error("invalid_status", "Unsupported runner task status.", 400);
-  }
-  if (body.type === "completed" && body.progressPercent != null && body.progressPercent !== 100) {
-    return error("invalid_progress", "Completed tasks must report 100 percent.", 400);
   }
   const task = await env.DB.prepare("SELECT id,user_id FROM tasks WHERE id=?").bind(id).first();
   if (!task) return error("not_found", "Task not found.", 404);
