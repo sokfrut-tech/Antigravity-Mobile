@@ -261,9 +261,17 @@ private fun AntigravityApp() {
                                     } else {
                                         scope.launch {
                                             connectionStatus = "Отправляем задачу в фабрику…"
-                                            connectionStatus = runCatching {
+                                            val submission = runCatching {
                                                 FactoryApiClient.createTask(baseUrl, token, task.id, task.title, task.details)
-                                            }.getOrElse { "Не удалось отправить: " + (it.message ?: "ошибка сети") }
+                                            }
+                                            connectionStatus = submission.fold(
+                                                onSuccess = { result ->
+                                                    val index = tasks.indexOfFirst { it.id == task.id }
+                                                    if (index >= 0) tasks[index] = tasks[index].copy(remoteTaskId = result.id)
+                                                    "Задача принята фабрикой. Ожидаем события агента."
+                                                },
+                                                onFailure = { "Не удалось отправить: " + (it.message ?: "ошибка сети") }
+                                            )
                                         }
                                     }
                                 }
