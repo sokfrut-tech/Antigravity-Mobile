@@ -77,7 +77,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AntigravityApp() {
+internal fun AntigravityApp() {
     val context = LocalContext.current
     val storage = remember(context) { TaskStorage(context) }
     val connectionStore = remember(context) { SecureTokenStore(context) }
