@@ -63,3 +63,8 @@ Applying this migration locally in CI proves SQL syntax and migration compatibil
 ## Legacy task-event boundary
 
 The older task-level runner event endpoint is retained for progress/status compatibility, but it cannot emit a `completed` event or set task status to `completed`. Completion must be introduced through a separately reviewed run-lifecycle operation that validates completion evidence against the durable run. A progress event, a provider response, or a runner assertion alone is not completion evidence.
+
+
+## Guarded lifecycle design
+
+The next lifecycle mutation work is specified in [`PROVIDER_RUN_TRANSITIONS.md`](./PROVIDER_RUN_TRANSITIONS.md). It defines compare-and-set transitions, atomic event recording, the disabled completion/reconciliation/cancellation gates, and required real-D1 concurrency tests. No lifecycle mutation endpoint is enabled yet.
