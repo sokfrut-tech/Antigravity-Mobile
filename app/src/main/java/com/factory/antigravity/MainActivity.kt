@@ -387,7 +387,7 @@ private fun TaskCard(
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 AssistChip(onClick = onSend, modifier = Modifier.weight(1f),
-                    label = { Text("⚡ Фабрика", style = MaterialTheme.typography.labelSmall, maxLines = 1) })
+                    label = { Text("⚡ Запустить агента", style = MaterialTheme.typography.labelSmall, maxLines = 1) })
                 AssistChip(onClick = onDelete,
                     label = { Text("Удалить", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, maxLines = 1) })
             }
