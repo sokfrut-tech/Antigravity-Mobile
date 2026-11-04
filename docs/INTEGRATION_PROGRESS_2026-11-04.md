@@ -34,9 +34,9 @@
 - Existing SQLite concurrency/rollback checks apply all migration files.
 
 ## Verification status
-- Exact PR #18 head: `18ead4dc1a2a762361276fda2a77650f3af8e8ce`.
+- Exact integrated PR #18 head after mobile retry integration: `d545549fc45b7a6d06d601b44c23dc58802f279d`.
 - PR mergeability: true after recalculation; base is current main, no behind commits.
-- Fresh PR checks for this merge head: NOT YET OBSERVED. Do not treat historical PR #14/#15 runs or the separate main-only provider-adapter unit run as verification of this integrated branch.
+- Fresh PR checks for this integrated head: NOT YET OBSERVED. The earlier standalone main-branch Factory API run does not cover the integration branch. Do not treat historical PR #14/#15 runs or the separate main-only provider-adapter unit run as verification of this integrated branch.
 - Physical device test: NOT TESTED.
 - Live provider credentials/requests: NOT TESTED.
 - Cloudflare remote D1 migration and Worker deployment: NOT PERFORMED.
@@ -48,3 +48,7 @@
 4. Only after passing checks and owner approval: consider merge, configure Worker secrets, apply remote migration and manually deploy.
 5. After deployment, run a small, owner-approved test task with one configured provider; confirm returned output and run audit history.
 6. Add actual independent reviewer/acceptance flow before enabling completion.
+
+
+## Current branch safety note
+The integration branch was reconciled with current `main` using a two-parent merge commit; comparison now reports zero commits behind main and PR mergeability recalculated to true. The PR remains unmerged. The PR was briefly marked ready to see whether CI would start, but no PR-triggered workflow run appeared; it has been returned to draft until fresh verification is available.
