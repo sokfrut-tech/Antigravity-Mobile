@@ -12,6 +12,7 @@ Cloudflare D1 migration: `migrations/0002_task_runs.sql`.
 
 - `task_runs` is the authoritative run record.
 - `UNIQUE(task_id, run_key)` prevents two claims for the same logical run.
+- A partial unique index permits only one non-terminal run per task, even if concurrent callers choose different run keys. `failed`, `completed` and `cancelled` are terminal; `blocked`, `partial` and `outcome_unknown` continue to reserve the task until explicitly reconciled or cancelled.
 - `dispatch_token` is a unique opaque identifier for the single dispatch claim.
 - `provider_request_id` is unique per provider when present.
 - `task_run_events` is append-only run history with a per-run sequence.
@@ -21,7 +22,7 @@ Cloudflare D1 migration: `migrations/0002_task_runs.sql`.
 1. Authenticate the trusted orchestrator/runner, not the Android client.
 2. Validate task ownership, provider allowlist, role, policy and approval requirements.
 3. Calculate a stable request fingerprint from the normalized provider, role, model and payload. Never store credentials or raw secret values in it.
-4. Atomically insert a `claimed` row using the caller's stable `run_key`. The unique constraint is the concurrency guard. If the key already exists, return the existing run and do not dispatch again.
+4. In one D1 transaction/batch, atomically insert a `claimed` row using the caller's stable `run_key` and append its first event. The `(task_id, run_key)` constraint deduplicates the same logical request; the one-active-run partial index rejects different keys racing for the same task. If the key already exists, return the existing run only when its normalized request fingerprint matches; otherwise return a conflict. Neither case may dispatch again.
 5. Persist `dispatch_started` before making the outbound provider request.
 6. On a definite provider rejection that proves no work was accepted, record `failed` with a sanitized reason. A retry must be explicitly authorized and use a new run key.
 7. On a provider response, persist its provider request ID and `accepted` state before polling or doing more work.
