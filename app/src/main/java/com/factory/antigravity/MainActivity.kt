@@ -3,39 +3,14 @@ package com.factory.antigravity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -55,10 +30,31 @@ internal data class BoardTask(
 )
 
 internal enum class TaskStatus(val label: String) {
-    TODO("To Do"),
-    IN_PROGRESS("In Progress"),
-    DONE("Done")
+    TODO("Новые"), IN_PROGRESS("В работе"), DONE("Готово");
+    fun next() = when (this) {
+        TODO -> IN_PROGRESS
+        IN_PROGRESS -> DONE
+        DONE -> TODO
+    }
+    fun previous() = when (this) {
+        TODO -> DONE
+        IN_PROGRESS -> TODO
+        DONE -> IN_PROGRESS
+    }
 }
+
+private val AntigravityDarkColors = darkColorScheme(
+    primary = Color(0xFFB8C2FF),
+    onPrimary = Color(0xFF17245C),
+    secondary = Color(0xFFB9C7E8),
+    background = Color(0xFF10131C),
+    onBackground = Color(0xFFE7E9F2),
+    surface = Color(0xFF191E2A),
+    onSurface = Color(0xFFE7E9F2),
+    surfaceVariant = Color(0xFF252C3B),
+    onSurfaceVariant = Color(0xFFC4CAD9),
+    outline = Color(0xFF596276)
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,211 +63,168 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AntigravityApp() {
     val context = LocalContext.current
     val storage = remember(context) { TaskStorage(context) }
     val connectionStore = remember(context) { SecureTokenStore(context) }
-    val coroutineScope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
     var showConnectionDialog by rememberSaveable { mutableStateOf(false) }
+    var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var connectionStatus by rememberSaveable {
-        mutableStateOf(if (connectionStore.baseUrl() != null) "Connection settings saved" else "Factory API not configured")
+        mutableStateOf(if (connectionStore.baseUrl() != null) "Настройки подключения сохранены" else "Factory API не настроен")
     }
+
+    // Preserve offline-first persistence; do not replace it with demo-only in-memory state.
     val tasks = remember {
         mutableStateListOf<BoardTask>().apply {
             val saved = storage.load()
-            if (saved != null) {
-                addAll(saved)
-            } else {
-                addAll(
-                    listOf(
-                        BoardTask(1, "Connect the factory", "Prepare the mobile workspace"),
-                        BoardTask(2, "Build the first APK", "Set up the automated Android build", TaskStatus.IN_PROGRESS),
-                        BoardTask(3, "Plan the next iteration", "Review the Kanban workflow", TaskStatus.DONE)
-                    )
-                )
-            }
+            if (saved != null) addAll(saved)
+            else addAll(listOf(
+                BoardTask(1, "Подключить фабрику", "Подготовить мобильное рабочее пространство"),
+                BoardTask(2, "Собрать первый APK", "Настроить автоматическую Android-сборку", TaskStatus.IN_PROGRESS),
+                BoardTask(3, "Проверить рабочий процесс", "Проверить доску задач и навигацию", TaskStatus.DONE)
+            ))
         }
     }
-    LaunchedEffect(tasks.toList()) {
-        storage.save(tasks.toList())
-    }
-    var selectedStatus by rememberSaveable { mutableStateOf(TaskStatus.TODO.name) }
-    var showAddDialog by rememberSaveable { mutableStateOf(false) }
-    val currentStatus = TaskStatus.valueOf(selectedStatus)
+    LaunchedEffect(tasks.toList()) { storage.save(tasks.toList()) }
 
-    MaterialTheme(
-        colorScheme = MaterialTheme.colorScheme.copy(
-            primary = Color(0xFF4659D8),
-            secondary = Color(0xFF6875E5),
-            background = Color(0xFFF5F6FA),
-            surface = Color.White
-        )
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 18.dp)
-            ) {
-                Text(
-                    text = "ANTIGRAVITY",
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 2.sp
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "Mobile workspace",
-                    fontSize = 27.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF171A2B)
-                )
-                Spacer(Modifier.height(5.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Universal AI Factory · Task board",
-                            color = Color(0xFF73778A),
-                            fontSize = 14.sp
-                        )
-                        Text(connectionStatus, color = Color(0xFF85899A), fontSize = 11.sp)
-                    }
-                    TextButton(onClick = { showConnectionDialog = true }) { Text("Connection") }
-                    TextButton(
-                        onClick = {
-                            val baseUrl = connectionStore.baseUrl()
-                            if (baseUrl.isNullOrBlank()) {
-                                connectionStatus = "Set the Factory API address first"
-                            } else {
-                                coroutineScope.launch {
-                                    connectionStatus = "Checking Factory API…"
-                                    connectionStatus = runCatching {
-                                        FactoryApiClient.health(baseUrl, connectionStore.readToken())
-                                    }.getOrElse { "Connection failed: ${it.message ?: "network error"}" }
-                                }
-                            }
-                        }
-                    ) { Text("Test") }
-                }
-                Spacer(Modifier.height(22.dp))
+    var selectedTab by rememberSaveable { mutableStateOf(TaskStatus.TODO.name) }
+    val selectedStatus = TaskStatus.valueOf(selectedTab)
+    val statuses = TaskStatus.entries
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TaskStatus.entries.forEach { status ->
-                        val count = tasks.count { it.status == status }
-                        val selected = currentStatus == status
-                        OutlinedButton(
-                            onClick = { selectedStatus = status.name },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(14.dp),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                horizontal = 4.dp,
-                                vertical = 10.dp
-                            )
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    MaterialTheme(colorScheme = AntigravityDarkColors) {
+        Scaffold(
+            topBar = {
+                Column {
+                    TopAppBar(
+                        title = {
+                            Column {
                                 Text(
-                                    text = count.toString(),
+                                    "⚡ Antigravity Mobile",
                                     fontWeight = FontWeight.Bold,
-                                    color = if (selected) MaterialTheme.colorScheme.primary else Color(0xFF6F7385)
-                                )
-                                Text(
-                                    text = when (status) {
-                                        TaskStatus.TODO -> "To Do"
-                                        TaskStatus.IN_PROGRESS -> "Doing"
-                                        TaskStatus.DONE -> "Done"
-                                    },
-                                    fontSize = 11.sp,
-                                    color = if (selected) MaterialTheme.colorScheme.primary else Color(0xFF6F7385)
+                                    fontSize = 18.sp,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
+                        },
+                        actions = {
+                            TextButton(onClick = { showConnectionDialog = true }) { Text("API") }
+                        }
+                    )
+                    ScrollableTabRow(
+                        selectedTabIndex = statuses.indexOf(selectedStatus),
+                        edgePadding = 16.dp,
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        statuses.forEach { status ->
+                            val count = tasks.count { it.status == status }
+                            val label = when (status) {
+                                TaskStatus.TODO -> "Новые ($count)"
+                                TaskStatus.IN_PROGRESS -> "В работе ($count)"
+                                TaskStatus.DONE -> "Готово ($count)"
+                            }
+                            Tab(
+                                selected = selectedStatus == status,
+                                onClick = { selectedTab = status.name },
+                                text = { Text(label, style = MaterialTheme.typography.bodyMedium, maxLines = 1, softWrap = false) }
+                            )
                         }
                     }
                 }
-
-                Spacer(Modifier.height(18.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(currentStatus.label, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = "${tasks.count { it.status == currentStatus }} tasks",
-                            color = Color(0xFF85899A),
-                            fontSize = 13.sp
-                        )
-                    }
-                    Button(
-                        onClick = { showAddDialog = true },
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("+ Add task")
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-
-                val visibleTasks = tasks.filter { it.status == currentStatus }
-                if (visibleTasks.isEmpty()) {
-                    Column(
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = { showAddDialog = true }) { Text("+", fontSize = 26.sp) }
+            },
+            bottomBar = {
+                Surface(color = MaterialTheme.colorScheme.surface) {
+                    Text(
+                        "v0.2.3 · Задачи сохраняются на устройстве",
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f)
-                            .background(Color.White, RoundedCornerShape(18.dp))
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                            .navigationBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1
+                    )
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.background
+        ) { innerPadding ->
+            val visibleTasks = tasks.filter { it.status == selectedStatus }
+            Column(
+                modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(selectedStatus.label, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(connectionStatus, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = {
+                        val baseUrl = connectionStore.baseUrl()
+                        if (baseUrl.isNullOrBlank()) {
+                            connectionStatus = "Сначала укажите адрес Factory API"
+                        } else {
+                            scope.launch {
+                                connectionStatus = "Проверяем соединение…"
+                                connectionStatus = runCatching {
+                                    FactoryApiClient.health(baseUrl, connectionStore.readToken())
+                                }.getOrElse { "Ошибка соединения: " + (it.message ?: "сеть недоступна") }
+                            }
+                        }
+                    }) { Text("Проверить") }
+                }
+                Spacer(Modifier.height(14.dp))
+                if (visibleTasks.isEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        shape = RoundedCornerShape(22.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
-                        Text("Nothing here yet", fontWeight = FontWeight.SemiBold)
-                        Text("Add a task or move one here.", color = Color(0xFF85899A), fontSize = 13.sp)
+                        Column(
+                            modifier = Modifier.padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text("Здесь пока пусто", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(6.dp))
+                            Text("Добавьте задачу или переместите её с другой вкладки.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 } else {
                     LazyColumn(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 24.dp)
                     ) {
-                        itemsIndexed(visibleTasks, key = { _, task -> task.id }) { _, task ->
+                        items(visibleTasks, key = { it.id }) { task ->
                             TaskCard(
                                 task = task,
-                                onMove = {
+                                onPrevious = {
                                     val index = tasks.indexOfFirst { it.id == task.id }
-                                    if (index >= 0) {
-                                        val next = when (task.status) {
-                                            TaskStatus.TODO -> TaskStatus.IN_PROGRESS
-                                            TaskStatus.IN_PROGRESS -> TaskStatus.DONE
-                                            TaskStatus.DONE -> TaskStatus.TODO
-                                        }
-                                        tasks[index] = task.copy(status = next)
-                                    }
+                                    if (index >= 0) tasks[index] = task.copy(status = task.status.previous())
+                                },
+                                onNext = {
+                                    val index = tasks.indexOfFirst { it.id == task.id }
+                                    if (index >= 0) tasks[index] = task.copy(status = task.status.next())
                                 },
                                 onDelete = { tasks.removeAll { it.id == task.id } },
                                 onSend = {
                                     val baseUrl = connectionStore.baseUrl()
                                     val token = connectionStore.readToken()
                                     if (baseUrl.isNullOrBlank() || token.isNullOrBlank()) {
-                                        connectionStatus = "Save the HTTPS address and bearer token in Connection settings"
+                                        connectionStatus = "Сохраните HTTPS-адрес и bearer token в настройках"
                                     } else {
-                                        coroutineScope.launch {
-                                            connectionStatus = "Sending task to Factory…"
+                                        scope.launch {
+                                            connectionStatus = "Отправляем задачу в фабрику…"
                                             connectionStatus = runCatching {
-                                                FactoryApiClient.createTask(
-                                                    baseUrl = baseUrl,
-                                                    token = token,
-                                                    localTaskId = task.id,
-                                                    title = task.title,
-                                                    details = task.details
-                                                )
-                                            }.getOrElse { "Send failed: ${it.message ?: "network error"}" }
+                                                FactoryApiClient.createTask(baseUrl, token, task.id, task.title, task.details)
+                                            }.getOrElse { "Не удалось отправить: " + (it.message ?: "ошибка сети") }
                                         }
                                     }
                                 }
@@ -279,14 +232,6 @@ private fun AntigravityApp() {
                         }
                     }
                 }
-
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = "v0.1.0  ·  Local preview",
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    color = Color(0xFF9A9EAC),
-                    fontSize = 11.sp
-                )
             }
         }
     }
@@ -298,26 +243,65 @@ private fun AntigravityApp() {
             onDismiss = { showConnectionDialog = false },
             onSave = { baseUrl, token ->
                 runCatching { connectionStore.saveConnection(baseUrl, token) }
-                    .onSuccess {
-                        connectionStatus = "Connection settings saved"
-                        showConnectionDialog = false
-                    }
-                    .onFailure {
-                        connectionStatus = it.message ?: "Could not save connection settings"
-                    }
+                    .onSuccess { connectionStatus = "Настройки подключения сохранены"; showConnectionDialog = false }
+                    .onFailure { connectionStatus = it.message ?: "Не удалось сохранить настройки" }
             }
         )
     }
-
     if (showAddDialog) {
         AddTaskDialog(
             onDismiss = { showAddDialog = false },
             onAdd = { title, details ->
                 val nextId = (tasks.maxOfOrNull { it.id } ?: 0L) + 1L
-                tasks.add(BoardTask(nextId, title, details, currentStatus))
+                tasks.add(BoardTask(nextId, title, details, TaskStatus.TODO))
+                selectedTab = TaskStatus.TODO.name
                 showAddDialog = false
             }
         )
+    }
+}
+
+@Composable
+private fun TaskCard(
+    task: BoardTask,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onDelete: () -> Unit,
+    onSend: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            if (task.details.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(task.details, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                AssistChip(onClick = onPrevious, modifier = Modifier.weight(1f),
+                    label = { Text("← Назад", style = MaterialTheme.typography.labelSmall, maxLines = 1) })
+                AssistChip(onClick = onNext, modifier = Modifier.weight(1f),
+                    label = {
+                        Text(when (task.status) {
+                            TaskStatus.TODO -> "В работу →"
+                            TaskStatus.IN_PROGRESS -> "Готово →"
+                            TaskStatus.DONE -> "Вернуть →"
+                        }, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
+                    })
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                AssistChip(onClick = onSend, modifier = Modifier.weight(1f),
+                    label = { Text("⚡ Фабрика", style = MaterialTheme.typography.labelSmall, maxLines = 1) })
+                AssistChip(onClick = onDelete,
+                    label = { Text("Удалить", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, maxLines = 1) })
+            }
+        }
     }
 }
 
@@ -331,135 +315,57 @@ private fun ConnectionSettingsDialog(
     var baseUrl by rememberSaveable { mutableStateOf(initialUrl) }
     var token by remember { mutableStateOf("") }
     var validationMessage by rememberSaveable { mutableStateOf("") }
-
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Factory API connection") },
+        title = { Text("Подключение к Factory API") },
         text = {
             Column {
-                OutlinedTextField(
-                    value = baseUrl,
-                    onValueChange = { baseUrl = it; validationMessage = "" },
-                    label = { Text("API HTTPS address") },
-                    placeholder = { Text("https://your-worker.example.workers.dev") },
-                    singleLine = true
-                )
+                OutlinedTextField(value = baseUrl, onValueChange = { baseUrl = it; validationMessage = "" },
+                    label = { Text("HTTPS-адрес API") }, placeholder = { Text("https://your-worker.example.workers.dev") },
+                    singleLine = true)
                 Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = token,
-                    onValueChange = { token = it },
-                    label = { Text("Bearer token") },
-                    placeholder = { Text(if (hasSavedToken) "Leave empty to keep saved token" else "Paste private token") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    singleLine = true
-                )
+                OutlinedTextField(value = token, onValueChange = { token = it }, label = { Text("Bearer token") },
+                    placeholder = { Text(if (hasSavedToken) "Пусто — оставить сохранённый токен" else "Введите личный токен") },
+                    visualTransformation = PasswordVisualTransformation(), singleLine = true)
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "The token is encrypted with Android Keystore and is not included in backups. Do not send it in chat.",
-                    color = Color(0xFF777C8F),
-                    fontSize = 12.sp
-                )
-                if (validationMessage.isNotBlank()) {
-                    Text(validationMessage, color = Color(0xFFB14D5A), fontSize = 12.sp)
-                }
+                Text("Токен шифруется Android Keystore. Не отправляйте его в чат.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                if (validationMessage.isNotBlank()) Text(validationMessage, color = MaterialTheme.colorScheme.error)
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = {
-                    if (baseUrl.isBlank()) {
-                        validationMessage = "Enter the HTTPS API address."
-                    } else {
-                        onSave(baseUrl.trim(), token)
-                    }
-                }
-            ) { Text("Save") }
+            TextButton(onClick = {
+                if (baseUrl.isBlank()) validationMessage = "Укажите HTTPS-адрес API."
+                else onSave(baseUrl.trim(), token)
+            }) { Text("Сохранить") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
     )
 }
 
 @Composable
-private fun TaskCard(
-    task: BoardTask,
-    onMove: () -> Unit,
-    onDelete: () -> Unit,
-    onSend: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(17.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(task.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color(0xFF202337))
-            if (task.details.isNotBlank()) {
-                Spacer(Modifier.height(5.dp))
-                Text(task.details, color = Color(0xFF777C8F), fontSize = 13.sp)
-            }
-            Spacer(Modifier.height(13.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End
-            ) {
-                TextButton(onClick = onSend) {
-                    Text("Send", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
-                }
-                TextButton(onClick = onDelete) {
-                    Text("Delete", color = Color(0xFFB14D5A), fontSize = 12.sp)
-                }
-                Button(onClick = onMove, shape = RoundedCornerShape(10.dp)) {
-                    Text(
-                        when (task.status) {
-                            TaskStatus.TODO -> "Start →"
-                            TaskStatus.IN_PROGRESS -> "Complete →"
-                            TaskStatus.DONE -> "Reopen ↺"
-                        },
-                        fontSize = 12.sp
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AddTaskDialog(
-    onDismiss: () -> Unit,
-    onAdd: (String, String) -> Unit
-) {
+private fun AddTaskDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Unit) {
     var title by rememberSaveable { mutableStateOf("") }
     var details by rememberSaveable { mutableStateOf("") }
-
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New task") },
+        title = { Text("Новая задача") },
         text = {
             Column {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("Task name") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-                )
+                OutlinedTextField(value = title, onValueChange = { title = it },
+                    label = { Text("Название задачи") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
                 Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = details,
-                    onValueChange = { details = it },
-                    label = { Text("Details (optional)") },
-                    minLines = 2,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
-                )
+                OutlinedTextField(value = details, onValueChange = { details = it },
+                    label = { Text("Описание (необязательно)") }, minLines = 2,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
             }
         },
         confirmButton = {
             TextButton(onClick = { onAdd(title.trim(), details.trim()) }, enabled = title.isNotBlank()) {
-                Text("Add")
+                Text("Создать")
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
     )
 }
