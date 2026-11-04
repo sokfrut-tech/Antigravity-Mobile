@@ -289,8 +289,9 @@ async function claimProviderRun(request, taskId, env) {
 
 async function recordRunnerEvent(request, id, env) {
   const expected = env.FACTORY_RUNNER_TOKEN;
-  const supplied = (request.headers.get("Authorization") || "").replace(/^Bearer /, "");
-  if (!expected || !constantTimeEqual(supplied, expected)) {
+  const match = /^Bearer ([A-Za-z0-9._~-]{32,512})$/.exec(request.headers.get("Authorization") || "");
+  const supplied = match?.[1] || "";
+  if (!expected || !match || !constantTimeEqual(supplied, expected)) {
     return error("unauthorized_runner", "A valid factory runner credential is required.", 401);
   }
   const parsed = await readJsonBodyLimited(request, 8_192);
