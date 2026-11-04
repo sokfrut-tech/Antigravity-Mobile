@@ -99,7 +99,7 @@ export async function executeProvider({ provider, model, prompt, env, fetchImpl 
   } else if (provider === "gemini") {
     endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
     headers = { "x-goog-api-key": apiKey, "content-type": "application/json" };
-    body = { model: selectedModel, input: prompt, store: false };
+    body = { model: selectedModel, input: prompt, store: false, generation_config: { max_output_tokens: 4096 } };
   } else {
     endpoint = "https://api.openai.com/v1/responses";
     headers = { "authorization": `Bearer ${apiKey}`, "content-type": "application/json" };
