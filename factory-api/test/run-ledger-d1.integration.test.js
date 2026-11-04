@@ -303,6 +303,16 @@ test("owner dispatches to a configured provider once and retrieves the immutable
   });
 
   try {
+    const disabledByDefault = await worker.fetch(makeDispatch(), env);
+    assert.equal(disabledByDefault.status, 503);
+    assert.equal((await disabledByDefault.json()).error.code, "live_providers_disabled");
+    assert.equal(providerCalls, 0);
+    const noRunsBeforeEnable = await DB.prepare("SELECT COUNT(*) AS count FROM task_runs WHERE task_id=?")
+      .bind(dispatchTaskId).first();
+    assert.equal(noRunsBeforeEnable.count, 0);
+
+    // Test-only opt-in; production remains disabled by default in wrangler.toml.
+    env.ALLOW_LIVE_PROVIDERS = "true";
     const noAcknowledgement = await worker.fetch(makeDispatch(false), env);
     assert.equal(noAcknowledgement.status, 400);
     assert.equal((await noAcknowledgement.json()).error.code, "cost_ack_required");
