@@ -10,7 +10,7 @@
 1. Eight-screen Fallout-inspired Compose shell from PR #17.
 2. Existing task board, local persistence, HTTPS API configuration and Android Keystore token encryption retained.
 3. Factory API provider-run ledger and guarded transitions from PR #15.
-4. Server-side provider adapters: Gemini `generateContent`, Claude Messages and OpenAI Responses.
+4. Server-side provider adapters: Gemini Interactions API, Claude Messages and OpenAI Responses.
 5. Owner-authenticated `GET /v1/providers`, `POST /v1/tasks/{id}/dispatch`, and owner-only output retrieval.
 6. Provider outputs are stored in immutable D1 table `task_run_outputs` (migration 0004); run moves to `review`, never auto-completed.
 7. Android task action now creates/reuses a remote task, dispatches once, saves the returned text locally and shows the output in the task card.
