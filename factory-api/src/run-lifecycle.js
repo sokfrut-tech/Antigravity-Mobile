@@ -1,5 +1,3 @@
-import { createHash, timingSafeEqual } from "node:crypto";
-
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
@@ -40,10 +38,10 @@ function error(code, message, status) {
 }
 
 function safeEqual(a, b) {
-  if (typeof a !== "string" || typeof b !== "string") return false;
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 async function readLimitedJson(request, limit = 8192) {
@@ -153,17 +151,18 @@ export async function transitionProviderRun(request, runId, env) {
          FROM task_runs
          WHERE id=? AND status=? AND updated_at=?`
       ).bind(eventId, runId, runId, transition.event, now, summary.trim(), dataJson,
-        runId, nextStatus, now)
+        runId, nextStatus, now),
+      env.DB.prepare(
+        `INSERT INTO task_run_events
+         (id,run_id,task_id,sequence,type,timestamp,summary,data_json)
+         SELECT NULL,NULL,NULL,1,'blocked',?,'Transition event guard failed','{}'
+         WHERE NOT EXISTS (
+           SELECT 1 FROM task_run_events WHERE id=? AND run_id=?
+         )`
+      ).bind(now, eventId, runId)
     ]);
     const changed = results?.[0]?.meta?.changes;
     if (changed !== 1) return error("stale_run_state", "Run was not changed: its current status differs from expectedStatus.", 409);
-    const eventWritten = results?.[1]?.meta?.changes;
-    if (eventWritten !== 1) {
-      // D1 batch is atomic: if the conditional event insert did not occur, force a rollback
-      // rather than returning a state transition without its audit event.
-      await env.DB.prepare("SELECT RAISE(ABORT, 'run_transition_event_missing')").first();
-      return error("transition_not_committed", "Transition and audit event were not committed.", 503);
-    }
     return json({ accepted: true, runId, previousStatus: expectedStatus, status: nextStatus, eventId, timestamp: now }, 201);
   } catch {
     return error("transition_write_failed", "Transition and audit event could not be committed atomically.", 503);
