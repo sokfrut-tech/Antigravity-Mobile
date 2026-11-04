@@ -147,3 +147,40 @@ test("trusted runner can append a bounded progress event", async () => {
   assert.equal(batches, 1);
   assert.equal((await response.json()).accepted, true);
 });
+
+
+test("provider run route rejects the mobile owner token", async () => {
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/runs", {
+      method: "POST",
+      headers: { Origin: allowedOrigin, Authorization: "Bearer 0123456789abcdef0123456789abcdef", "Content-Type": "application/json" },
+      body: JSON.stringify({ runKey: "mobile-run-key-001", provider: "claude", role: "implementer" })
+    }),
+    {
+      DB: {},
+      API_TOKEN_SHA256: createHash("sha256").update("0123456789abcdef0123456789abcdef").digest("hex"),
+      FACTORY_RUNNER_TOKEN: "runner-secret-value",
+      CORS_ORIGIN: allowedOrigin
+    }
+  );
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).error.code, "unauthorized_runner");
+});
+
+test("provider run route accepts only runner authentication but keeps dispatch disabled", async () => {
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/runs", {
+      method: "POST",
+      headers: { Origin: allowedOrigin, Authorization: "Bearer runner-secret-value", "Content-Type": "application/json" },
+      body: JSON.stringify({ runKey: "runner-run-key-001", provider: "claude", role: "implementer" })
+    }),
+    {
+      DB: {},
+      API_TOKEN_SHA256: createHash("sha256").update("0123456789abcdef0123456789abcdef").digest("hex"),
+      FACTORY_RUNNER_TOKEN: "runner-secret-value",
+      CORS_ORIGIN: allowedOrigin
+    }
+  );
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error.code, "provider_not_configured");
+});
