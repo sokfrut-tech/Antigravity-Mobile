@@ -308,6 +308,10 @@ async function dispatchTask(request, taskId, env, userId) {
     "SELECT id,user_id,title,brief,acceptance_criteria_json,preferred_provider,preferred_role FROM tasks WHERE id=? AND user_id=?"
   ).bind(taskId, userId).first();
   if (!task) return error("not_found", "Task not found.", 404);
+  // Global fail-closed switch. Per-invocation UI consent is also required below.
+  if (env.ALLOW_LIVE_PROVIDERS !== "true") {
+    return error("live_providers_disabled", "Live provider calls are disabled by factory policy. No provider request was sent.", 503);
+  }
 
   const parsed = await readJsonBodyLimited(request, 8_192);
   if (parsed.tooLarge) return error("payload_too_large", "Dispatch request exceeds 8 KB.", 413);
