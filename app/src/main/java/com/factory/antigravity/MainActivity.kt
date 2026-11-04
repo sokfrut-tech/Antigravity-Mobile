@@ -49,16 +49,18 @@ internal data class BoardTask(
 )
 
 internal enum class TaskStatus(val label: String) {
-    TODO("Новые"), IN_PROGRESS("В работе"), DONE("Готово");
+    TODO("Новые"), IN_PROGRESS("В работе"), DONE("Готово"), FAILED("Ошибка / блокировка");
     fun next() = when (this) {
         TODO -> IN_PROGRESS
         IN_PROGRESS -> DONE
         DONE -> TODO
+        FAILED -> IN_PROGRESS
     }
     fun previous() = when (this) {
         TODO -> DONE
         IN_PROGRESS -> TODO
         DONE -> IN_PROGRESS
+        FAILED -> TODO
     }
 }
 
@@ -122,6 +124,7 @@ internal fun AntigravityApp() {
                                     isRunning = snapshot.isRunning,
                                     status = when (snapshot.status) {
                                         "completed" -> TaskStatus.DONE
+                                        "failed", "blocked" -> TaskStatus.FAILED
                                         "running", "planning", "accepted", "queued", "review" -> TaskStatus.IN_PROGRESS
                                         else -> current.status
                                     }
@@ -386,6 +389,7 @@ private fun TaskCard(
                             TaskStatus.TODO -> "В работу →"
                             TaskStatus.IN_PROGRESS -> "Готово →"
                             TaskStatus.DONE -> "Вернуть →"
+                            TaskStatus.FAILED -> "В работу →"
                         }, style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                     })
             }
