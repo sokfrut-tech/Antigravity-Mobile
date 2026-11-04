@@ -18,7 +18,7 @@
 9. Security workflows from PR #7 integrated; deploy workflow supports optional provider secrets while remaining manual.
 
 ## Dispatch safety contract
-- Auto selection order: Gemini → Claude → OpenAI, based only on Worker secret presence.
+- Auto selection order: Gemini → Claude → OpenAI, based only on Worker secret presence. Android requires an explicit paid-API warning confirmation; the Worker independently enforces `costAcknowledged: true`. OpenAI fallback defaults to lower-cost `gpt-6.1-sol`.
 - Provider credentials remain server-side. No credentials were supplied in this change.
 - 4xx is recorded as a definite rejection. 5xx, timeout, connection loss or malformed/empty response is recorded as `outcome_unknown`.
 - An existing run key is never dispatched twice. An unknown outcome is not automatically retried.
