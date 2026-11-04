@@ -30,6 +30,11 @@ CREATE INDEX IF NOT EXISTS idx_task_runs_task_created
   ON task_runs(task_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_task_runs_user_status
   ON task_runs(user_id, status, updated_at DESC);
+-- A task may have only one non-terminal run, even when callers use different run keys.
+-- Unknown/blocked/partial runs remain active until explicitly reconciled or cancelled.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_task_runs_one_active_per_task
+  ON task_runs(task_id)
+  WHERE status NOT IN ('failed','completed','cancelled');
 CREATE UNIQUE INDEX IF NOT EXISTS idx_task_runs_provider_request
   ON task_runs(provider, provider_request_id)
   WHERE provider_request_id IS NOT NULL;
