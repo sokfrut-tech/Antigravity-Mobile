@@ -14,6 +14,10 @@ This is the first backend implementation slice for Antigravity Mobile. It provid
 - Configure Cloudflare rate limiting for `/v1/*` before public exposure.
 - Do not expose this API publicly until the token is generated, stored as a Worker secret, and the D1 migration is applied.
 
+## Durable provider run ledger
+
+Migration `0002_task_runs.sql` adds a persistent run registry with unique `(task_id, run_key)` claims, provider request IDs, append-only run events and an `outcome_unknown` state. This is schema groundwork only: no provider dispatch endpoint is enabled by this migration. See `docs/PROVIDER_RUN_LEDGER.md` for the required atomic claim, timeout and retry rules.
+
 ## Endpoints
 
 - `GET /v1/health` — unauthenticated health.
