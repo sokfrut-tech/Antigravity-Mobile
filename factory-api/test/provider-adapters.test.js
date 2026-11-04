@@ -30,6 +30,7 @@ test("Gemini adapter sends key in header and extracts response text", async () =
   assert.equal(captured.init.headers["x-goog-api-key"], "never-log-this");
   assert.equal(JSON.parse(captured.init.body).model, "gemini-3.8-flash");
   assert.equal(JSON.parse(captured.init.body).store, false);
+  assert.equal(JSON.parse(captured.init.body).generation_config.max_output_tokens, 4096);
   assert.equal(result.output, "Review complete.");
   assert.equal(result.providerRequestId, "interaction_123");
 });
