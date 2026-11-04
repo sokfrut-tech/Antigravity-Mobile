@@ -156,10 +156,10 @@ private fun OverviewScreen(onTasks: () -> Unit, onAgents: () -> Unit, onConnecti
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             MetricCard("АГЕНТЫ", "Не подключены", "ожидают настройки", Modifier.weight(1f))
-            MetricCard("ЗАДАЧИ", "Локально", "Factory API не развёрнут", Modifier.weight(1f))
+            MetricCard("ЗАДАЧИ", "Локально", "Синхронизация требует настройки API", Modifier.weight(1f))
         }
-        StatusPanel("Ядро оркестрации", "Ожидает подключения",
-            "Мобильный интерфейс готовит управление. Реальная передача задач включится после развёртывания Factory API и подключения исполнителя.")
+        StatusPanel("Ядро оркестрации", "Требуется проверка соединения",
+            "Factory API уже развёрнут. Сохрани HTTPS-адрес и токен в настройках, затем проверь Worker и доступность провайдеров.")
         Text("БЫСТРЫЙ ДОСТУП", color = Color(0xFFE0AE45), fontWeight = FontWeight.Bold, fontSize = 11.sp)
         ActionPanel("▤", "Открыть задачи", "Создать задачу или отправить её в фабрику", onTasks)
         ActionPanel("◈", "Команда агентов", "Посмотреть роли и состояние подключений", onAgents)
