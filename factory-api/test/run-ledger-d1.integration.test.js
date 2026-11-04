@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, test } from "node:test";
 import { Miniflare } from "miniflare";
 import { transitionProviderRun } from "../src/run-lifecycle.js";
+import worker from "../src/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(here, "..", "migrations");
@@ -78,6 +79,53 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await mf?.dispose();
+});
+
+test("same run key replay in claimed state returns the existing run without duplicating its audit event", async () => {
+  const replayTaskId = "00000000-0000-4000-8000-000000000003";
+  await DB.prepare(`INSERT INTO tasks
+    (id,user_id,title,brief,project_id,priority,status,correlation_id,
+     acceptance_criteria_json,created_at,updated_at)
+    VALUES(?,?,'Replay task','Idempotency test','factory','normal','new',
+           'corr-replay','[]',?,?)`)
+    .bind(replayTaskId,"owner",timestamp,timestamp).run();
+
+  const body = {
+    runKey: "replay-key-001",
+    provider: "claude",
+    role: "implementer",
+    model: "claude-sonnet",
+    payload: { prompt: "same request", options: { temperature: 0 } }
+  };
+  const makeRequest = () => new Request(`https://factory.test/v1/tasks/${replayTaskId}/runs`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Origin: "https://mobile.example.test",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const env = { DB, FACTORY_RUNNER_TOKEN: token, CORS_ORIGIN: "https://mobile.example.test" };
+  const first = await worker.fetch(makeRequest(), env);
+  assert.equal(first.status, 201);
+  const firstBody = await first.json();
+  assert.equal(firstBody.status, "claimed");
+  assert.equal(firstBody.replayed, false);
+
+  const replay = await worker.fetch(makeRequest(), env);
+  assert.equal(replay.status, 200);
+  const replayBody = await replay.json();
+  assert.equal(replayBody.runId, firstBody.runId);
+  assert.equal(replayBody.status, "claimed");
+  assert.equal(replayBody.replayed, true);
+
+  const runs = await DB.prepare("SELECT COUNT(*) AS count FROM task_runs WHERE task_id=?")
+    .bind(replayTaskId).first();
+  const events = await DB.prepare("SELECT COUNT(*) AS count FROM task_run_events WHERE task_id=?")
+    .bind(replayTaskId).first();
+  assert.equal(runs.count, 1);
+  assert.equal(events.count, 1);
 });
 
 test("D1 batch compare-and-set permits only one concurrent transition and event", async () => {
