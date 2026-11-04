@@ -426,8 +426,7 @@ async function dispatchTask(request, taskId, env, userId) {
   if (reviewed.status !== 201) {
     return json({ runId: run.runId, status: "accepted", output: result.output, error: { code: "review_transition_pending", message: "Output is saved; review state needs reconciliation." } }, 202);
   }
-  await env.DB.prepare("UPDATE tasks SET status='review',updated_at=? WHERE id=? AND user_id=?")
-    .bind(now, taskId, userId).run();
+  await recordTaskStatus(taskId, userId, "review", "Provider response saved; awaiting independent review", result.provider, role, env);
   return json({
     runId: run.runId, taskId, provider: result.provider, model: result.model,
     providerRequestId: result.providerRequestId, status: "review", output: result.output
