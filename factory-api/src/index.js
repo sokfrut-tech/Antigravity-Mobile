@@ -199,6 +199,92 @@ async function getTask(id, env, userId) {
 }
 
 
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalize(value[key])]));
+  }
+  return value;
+}
+
+async function claimProviderRun(request, taskId, env) {
+  const parsed = await readJsonBodyLimited(request, 64_000);
+  if (parsed.tooLarge) return error("payload_too_large", "Run request exceeds 64 KB.", 413);
+  if (parsed.invalid || !parsed.body || typeof parsed.body !== "object" || Array.isArray(parsed.body)) {
+    return error("invalid_run", "Run request must be a JSON object.", 400);
+  }
+  const body = parsed.body;
+  if (!validString(body.runKey, 8, 128) ||
+      !["claude", "gemini"].includes(body.provider) ||
+      !["implementer", "reviewer", "researcher", "tester"].includes(body.role) ||
+      !validString(body.model, 1, 120) ||
+      !body.payload || typeof body.payload !== "object" || Array.isArray(body.payload)) {
+    return error("invalid_run", "runKey, an allowed provider and role, model, and object payload are required.", 400);
+  }
+  const payloadJson = JSON.stringify(canonicalize(body.payload));
+  if (payloadJson.length > 48_000) return error("payload_too_large", "Normalized provider payload exceeds 48 KB.", 413);
+  const fingerprint = await sha256Hex(JSON.stringify({
+    provider: body.provider,
+    role: body.role,
+    model: body.model.trim(),
+    payload: JSON.parse(payloadJson)
+  }));
+  const task = await env.DB.prepare(
+    "SELECT id,user_id,preferred_provider,preferred_role FROM tasks WHERE id=?"
+  ).bind(taskId).first();
+  if (!task) return error("not_found", "Task not found.", 404);
+  if ((task.preferred_provider && task.preferred_provider !== body.provider) ||
+      (task.preferred_role && task.preferred_role !== body.role)) {
+    return error("run_policy_conflict", "Provider or role does not match this task's configured preference.", 409);
+  }
+
+  const now = new Date().toISOString();
+  const runId = crypto.randomUUID();
+  const dispatchToken = crypto.randomUUID();
+  try {
+    // D1 batch is transactional: claim and first audit event commit together.
+    // OR IGNORE makes same-key and active-run races resolve at the unique indexes.
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO task_runs
+         (id,task_id,user_id,run_key,provider,role,status,attempt,dispatch_token,request_fingerprint,created_at,updated_at)
+         SELECT ?,?,?,?,?,?,'claimed',1,?,?,?,?,?
+         WHERE EXISTS (SELECT 1 FROM tasks WHERE id=?)`
+      ).bind(runId, taskId, task.user_id, body.runKey.trim(), body.provider, body.role,
+        dispatchToken, fingerprint, now, now, taskId),
+      env.DB.prepare(
+        `INSERT INTO task_run_events(id,run_id,task_id,sequence,type,timestamp,summary,data_json)
+         SELECT ?,?, ?,1,'claimed',?,'Provider run claimed',?
+         WHERE EXISTS (SELECT 1 FROM task_runs WHERE id=? AND task_id=? AND status='claimed')`
+      ).bind(crypto.randomUUID(), runId, taskId, now,
+        JSON.stringify({ provider: body.provider, role: body.role, model: body.model.trim() }), runId, taskId)
+    ]);
+  } catch {
+    return error("run_claim_conflict", "Run claim could not be committed. No provider request was sent.", 409);
+  }
+
+  const existing = await env.DB.prepare(
+    "SELECT id,task_id,run_key,provider,role,status,attempt,request_fingerprint,created_at,updated_at,provider_request_id FROM task_runs WHERE task_id=? AND run_key=?"
+  ).bind(taskId, body.runKey.trim()).first();
+  if (existing) {
+    if (existing.request_fingerprint !== fingerprint) {
+      return error("run_key_conflict", "This runKey is already bound to a different normalized request.", 409);
+    }
+    return json({
+      runId: existing.id, taskId: existing.task_id, runKey: existing.run_key,
+      provider: existing.provider, role: existing.role, status: existing.status,
+      attempt: existing.attempt, createdAt: existing.created_at,
+      updatedAt: existing.updated_at, providerRequestId: existing.provider_request_id,
+      replayed: existing.id !== runId
+    }, existing.id === runId ? 201 : 200);
+  }
+  const active = await env.DB.prepare(
+    "SELECT id,status FROM task_runs WHERE task_id=? AND status NOT IN ('failed','completed','cancelled') ORDER BY created_at DESC LIMIT 1"
+  ).bind(taskId).first();
+  if (active) return error("active_run_exists", "Another non-terminal run already reserves this task.", 409);
+  return error("run_claim_conflict", "Run claim was not created. No provider request was sent.", 409);
+}
+
 async function recordRunnerEvent(request, id, env) {
   const expected = env.FACTORY_RUNNER_TOKEN;
   const supplied = (request.headers.get("Authorization") || "").replace(/^Bearer /, "");
@@ -310,8 +396,12 @@ export default {
       if (!expected || !match || !constantTimeEqual(supplied, expected)) {
         return respond(error("unauthorized_runner", "A valid factory runner credential is required.", 401));
       }
-      // Authentication boundary is established; provider dispatch remains intentionally disabled.
-      return respond(error("provider_not_configured", "No provider worker is connected yet; task dispatch is intentionally disabled.", 503));
+      if (!env.DB) return respond(error("service_unavailable", "D1 database binding is missing.", 503));
+      try {
+        return respond(await claimProviderRun(request, runnerRunMatch[1], env));
+      } catch {
+        return respond(error("internal_error", "Run claim failed safely. No provider request was sent.", 500));
+      }
     }
 
     const userId = await authenticate(request, env);
