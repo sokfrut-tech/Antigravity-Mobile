@@ -3,7 +3,7 @@
 **Updated:** 2026-11-04 | **Status:** active implementation, PRs unmerged  
 **Canonical portfolio:** Universal-AI-Factory/docs/PROJECT_PORTFOLIO_AND_CONTINUATION_PLAN_2026-11-04.md  
 **Current branch:** feat/agent-command-center-shell-2026-11-04  
-**Main PR:** https://github.com/sokfrut-tech/Antigravity-Mobile/pull/17  
+**Integration PR:** https://github.com/sokfrut-tech/Antigravity-Mobile/pull/18 (draft; current integrated branch)\n**Earlier UI PR:** https://github.com/sokfrut-tech/Antigravity-Mobile/pull/17  
 **Related PRs:** #14 Fallout UI, #15 durable run ledger, #7 security onboarding, #6 Kanban UI  
 **Correlation:** antigravity-mobile-continuation-20261104
 
