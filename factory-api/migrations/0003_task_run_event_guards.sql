@@ -12,10 +12,17 @@ BEGIN
 END;
 
 -- Run history is immutable once written. Corrections must be represented by a
--- new event, never by rewriting prior evidence. ON DELETE RESTRICT foreign keys
--- in migration 0002 prevent deleting a task/run while retained events reference it.
+-- new event, never by rewriting or deleting prior evidence. ON DELETE RESTRICT
+-- foreign keys in migration 0002 also prevent deleting a task/run while events reference it.
 CREATE TRIGGER IF NOT EXISTS trg_task_run_events_no_update
 BEFORE UPDATE ON task_run_events
+FOR EACH ROW
+BEGIN
+  SELECT RAISE(ABORT, 'task_run_events_are_append_only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_task_run_events_no_delete
+BEFORE DELETE ON task_run_events
 FOR EACH ROW
 BEGIN
   SELECT RAISE(ABORT, 'task_run_events_are_append_only');
