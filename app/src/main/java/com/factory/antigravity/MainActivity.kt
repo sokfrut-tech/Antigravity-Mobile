@@ -323,8 +323,7 @@ private fun TaskCard(
     onSend: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        modifier = Modifier.border(1.dp, Color(0xFF80633A).copy(alpha = 0.85f), RoundedCornerShape(18.dp)),
+        modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFF80633A).copy(alpha = 0.85f), RoundedCornerShape(18.dp)),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xE6192A20)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
