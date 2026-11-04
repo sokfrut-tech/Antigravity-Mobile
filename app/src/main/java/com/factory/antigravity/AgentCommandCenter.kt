@@ -219,15 +219,43 @@ private fun AgentsScreen() {
 
 @Composable
 private fun ConnectionsScreen(reducedMotion: Boolean, onReducedMotionChange: (Boolean) -> Unit, onOpenTasks: () -> Unit) {
+    val context = LocalContext.current
+    val connectionStore = remember(context) { SecureTokenStore(context) }
+    var apiStatus by remember { mutableStateOf("Проверка ещё не выполнялась") }
+    var providerStatus by remember { mutableStateOf("Статус неизвестен") }
+    var refreshKey by remember { mutableStateOf(0) }
+
+    LaunchedEffect(refreshKey) {
+        val baseUrl = connectionStore.baseUrl()
+        val token = connectionStore.readToken()
+        if (baseUrl.isNullOrBlank() || token.isNullOrBlank()) {
+            apiStatus = "Адрес API или токен не настроен"
+            providerStatus = "Настройте Factory API, чтобы проверить ключи"
+        } else {
+            apiStatus = "Проверяем Worker и D1…"
+            runCatching { FactoryApiClient.health(baseUrl, token) }
+                .onSuccess { apiStatus = "Worker + D1 доступны" }
+                .onFailure { apiStatus = it.message ?: "Factory API недоступен" }
+            runCatching { FactoryApiClient.providers(baseUrl, token) }
+                .onSuccess { providers ->
+                    val ready = providers.filter { it.configured }.map { it.id }
+                    providerStatus = if (ready.isEmpty()) "Серверные ключи провайдеров не настроены"
+                    else "Настроены ключи: " + ready.joinToString(", ")
+                }
+                .onFailure { providerStatus = "Не удалось прочитать конфигурацию провайдеров" }
+        }
+    }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("ИНФРАСТРУКТУРА", color = Color(0xFFE0AE45), fontSize = 11.sp, fontWeight = FontWeight.Bold)
         Text("Подключения", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-        StatusPanel("Factory API", "Не развёрнут", "Серверная часть подготовлена в репозитории, но ещё не опубликована в Cloudflare.")
-        StatusPanel("Antigravity / Claude / Gemini / OpenAI", "Не проверены",
-            "Ключи и учётные данные должны храниться только на сервере, не в APK.")
+        StatusPanel("Factory API", apiStatus, "Проверяется реальный Worker и база D1. Секреты не передаются в приложение.")
+        StatusPanel("Claude / Gemini / OpenAI", providerStatus,
+            "Наличие ключа не подтверждает его действительность. Она проверяется при реальном запуске задачи.")
         StatusPanel("GitHub", "Через серверный адаптер",
             "Inbox/outbox остаётся проверяемым каналом обмена, но не заменяет подтверждение агента.")
+        TextButton(onClick = { refreshKey++ }) { Text("Проверить подключения сейчас") }
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF18271E))) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("ЭФФЕКТЫ И ПЕРЕХОДЫ", fontWeight = FontWeight.Bold, color = Color(0xFFE0AE45))
