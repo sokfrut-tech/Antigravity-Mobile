@@ -63,8 +63,7 @@ beforeEach(async () => {
     for (const line of sql.split(/\r?\n/)) {
       const trimmed = line.trim();
       if (!statement && /^CREATE TRIGGER\b/i.test(trimmed)) inTrigger = true;
-      statement += line + "
-";
+      statement += line + "\n";
       if (inTrigger ? /^END;$/i.test(trimmed) : trimmed.endsWith(";")) {
         if (statement.trim()) await DB.prepare(statement).run();
         statement = "";
