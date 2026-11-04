@@ -155,7 +155,7 @@ internal object FactoryApiClient {
             .digest("$title\\n$details".toByteArray(Charsets.UTF_8))
             .take(12).joinToString("") { "%02x".format(it) }
         val runKey = "mobile-run-$localTaskId-$fingerprint-$attempt"
-        val body = JSONObject().put("runKey", runKey).put("provider", "auto").put("role", "implementer")
+        val body = JSONObject().put("runKey", runKey).put("provider", "auto").put("role", "implementer").put("costAcknowledged", true)
         val connection = (URL("$normalized/v1/tasks/$safeId/dispatch").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
