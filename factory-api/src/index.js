@@ -288,6 +288,20 @@ async function claimProviderRun(request, taskId, env) {
   return error("run_claim_conflict", "Run claim was not created. No provider request was sent.", 409);
 }
 
+async function recordTaskStatus(taskId, userId, status, summary, provider, role, env) {
+  const now = new Date().toISOString();
+  const data = JSON.stringify({ status, provider, role });
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO task_events(id,task_id,user_id,sequence,type,timestamp,summary,data_json)
+       SELECT ?,?,?,COALESCE(MAX(sequence),0)+1,'status',?,?,?
+       FROM task_events WHERE task_id=? AND user_id=?`
+    ).bind(crypto.randomUUID(), taskId, userId, now, summary, data, taskId, userId),
+    env.DB.prepare("UPDATE tasks SET status=?,updated_at=? WHERE id=? AND user_id=?")
+      .bind(status, now, taskId, userId)
+  ]);
+}
+
 async function dispatchTask(request, taskId, env, userId) {
   if (!env.FACTORY_RUNNER_TOKEN) return error("runner_not_configured", "Trusted Factory runner is not configured.", 503);
   const task = await env.DB.prepare(
@@ -379,6 +393,9 @@ async function dispatchTask(request, taskId, env, userId) {
       failureKind: "definite_rejection", reasonCode: failure.reasonCode || "provider_rejected",
       summary: "Provider rejected the request before accepting work"
     }), run.runId, env);
+    await recordTaskStatus(taskId, userId, ambiguous ? "blocked" : "failed",
+      ambiguous ? "Provider outcome unknown; retry blocked" : "Provider rejected the request",
+      selected.id, role, env);
     return json({
       runId: run.runId,
       status: ambiguous ? "outcome_unknown" : "failed",
