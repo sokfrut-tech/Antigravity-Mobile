@@ -33,6 +33,13 @@ Status: partial implementation on the feature branch; limited runner-only transi
 
 No implicit transition, arbitrary status assignment, or automatic retry is allowed. `outcome_unknown` must reserve the task. A retry after confirmed non-acceptance requires a separately authorized retry event and a new run key.
 
+For an `outcome_unknown` run:
+- A replay using the same `run_key` and identical request fingerprint returns the existing run and does not create another run or dispatch.
+- Reusing that key with a changed request fingerprint returns `run_key_conflict`.
+- A new run key is rejected while the unknown run remains active (`active_run_exists`).
+- No automatic retry or transition out of `outcome_unknown` is enabled. Reconciliation requires a separately reviewed workflow and evidence from the provider.
+
+
 ## Completion evidence gate
 
 A future completion operation must not accept a free-form `completed=true` assertion. It must load the task's acceptance criteria from the database and require a structured evidence record that:
