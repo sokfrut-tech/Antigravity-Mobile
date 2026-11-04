@@ -280,7 +280,9 @@ test("owner dispatches to a configured provider once and retrieves the immutable
     assert.match(String(url), /generativelanguage\.googleapis\.com/);
     assert.equal(init.headers["x-goog-api-key"], "test-server-secret");
     return new Response(JSON.stringify({
-      candidates: [{ content: { parts: [{ text: "Provider result: review complete." }] } }]
+      id: "gemini-interaction-555",
+      status: "completed",
+      steps: [{ type: "model_output", content: [{ type: "text", text: "Provider result: review complete." }] }]
     }), { status: 200, headers: { "x-goog-request-id": "gemini-request-555" } });
   };
   const env = {
@@ -306,7 +308,7 @@ test("owner dispatches to a configured provider once and retrieves the immutable
     const result = await response.json();
     assert.equal(result.status, "review");
     assert.equal(result.provider, "gemini");
-    assert.equal(result.providerRequestId, "gemini-request-555");
+    assert.equal(result.providerRequestId, "gemini-interaction-555");
     assert.equal(result.output, "Provider result: review complete.");
     assert.equal(providerCalls, 1);
 
