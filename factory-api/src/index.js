@@ -558,9 +558,9 @@ export default {
       if (path === "/v1/providers" && request.method === "GET") {
         return respond(json({ providers: providerAvailability(env).map(({ id, configured, defaultModel }) => ({ id, configured, defaultModel })) }));
       }
-      const dispatchMatch = /^\\/v1\\/tasks\\/([0-9a-f-]{36})\\/dispatch$/.exec(path);
+      const dispatchMatch = /^\/v1\/tasks\\/([0-9a-f-]{36})\/dispatch$/.exec(path);
       if (dispatchMatch && request.method === "POST") return respond(await dispatchTask(request, dispatchMatch[1], env, userId));
-      const outputMatch = /^\\/v1\\/tasks\\/([0-9a-f-]{36})\\/runs\\/([0-9a-f-]{36})\\/output$/.exec(path);
+      const outputMatch = /^\/v1\/tasks\\/([0-9a-f-]{36})\/runs\\/([0-9a-f-]{36})\/output$/.exec(path);
       if (outputMatch && request.method === "GET") return respond(await getRunOutput(outputMatch[1], outputMatch[2], env, userId));
       if (path === "/v1/tasks" && request.method === "GET") return respond(await listTasks(url, env, userId));
       if (path === "/v1/tasks" && request.method === "POST") return respond(await createTask(request, env, userId));
