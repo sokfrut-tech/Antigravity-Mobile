@@ -39,7 +39,6 @@ test("Claude adapter uses official Messages API and extracts text", async () => 
   let captured;
   const result = await executeProvider({
     provider: "claude",
-    model: "claude-sonnet-5-5",
     prompt: "Implement this task",
     env: { ANTHROPIC_API_KEY: "claude-secret" },
     fetchImpl: async (url, init) => {
@@ -52,6 +51,8 @@ test("Claude adapter uses official Messages API and extracts text", async () => 
   });
   assert.equal(captured.url, "https://api.anthropic.com/v1/messages");
   assert.equal(captured.init.headers["anthropic-version"], "2026-10-21");
+  assert.equal(captured.init.headers.authorization, "Bearer claude-secret");
+  assert.equal(JSON.parse(captured.init.body).model, "claude-sonnet-5");
   assert.equal(result.output, "Implementation plan.");
   assert.equal(result.providerRequestId, "msg_123");
 });
