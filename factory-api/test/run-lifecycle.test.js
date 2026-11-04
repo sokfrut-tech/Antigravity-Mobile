@@ -71,7 +71,7 @@ test("a valid transition batches compare-and-set and append-only event with roll
   assert.equal(store.calls[0].length, 3);
   assert.match(store.calls[0][0].sql, /WHERE id=\? AND status=\?/);
   assert.match(store.calls[0][1].sql, /INSERT INTO task_run_events/);
-  assert.match(store.calls[0][2].sql, /WHERE NOT EXISTS/);
+  assert.match(store.calls[0][2].sql, /AND NOT EXISTS/);
 });
 
 test("stale expected status returns conflict", async () => {
