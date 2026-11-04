@@ -93,9 +93,9 @@ test("D1 batch compare-and-set permits only one concurrent transition and event"
 });
 
 test("D1 batch rolls back status when audit event insert fails", async () => {
-  await DB.exec(`CREATE TRIGGER reject_dispatch_audit
+  await DB.prepare(`CREATE TRIGGER reject_dispatch_audit
     BEFORE INSERT ON task_run_events WHEN NEW.type='dispatch_started'
-    BEGIN SELECT RAISE(ABORT,'forced audit failure'); END;`);
+    BEGIN SELECT RAISE(ABORT,'forced audit failure'); END;`).run();
   const response = await transitionProviderRun(
     request({expectedStatus:"claimed",nextStatus:"dispatching",summary:"Dispatch started"}),
     runId,{DB,FACTORY_RUNNER_TOKEN:token}
