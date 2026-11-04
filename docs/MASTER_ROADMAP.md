@@ -150,3 +150,8 @@ No merge to protected main, production deployment, remote D1 migration, secret c
 - Latest observed PR #17 head: `7656ef494fdaa195b4b3e98ca3f1c943b84a008e`.
 - Fresh workflow run `41877993846` is queued. Await its actual job conclusion before treating the fixes as verified.
 - No substantive Claude or Gemini report has been verified. Their optional review tasks are in the Factory inbox. ChatGPT continues direct implementation and will not wait for external agent availability.
+
+
+### Security onboarding evidence
+
+PR #7 contains the project's Factory Security Gate (Gitleaks, Semgrep, Trivy and Kotlin/Java CodeQL). The exact PR head `66520370eb950dbc80a14b56c88a6a7992b7bd75` passed run `41706087791`, with all four security jobs completed successfully. PR #7 is still open/unmerged, and this evidence does not automatically cover the newer PR #17 head. Its manual DAST workflow was not run. Reconcile PR #7 into the final integration line and require a fresh security run on the exact release candidate.
