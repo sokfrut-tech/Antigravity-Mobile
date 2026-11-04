@@ -35,7 +35,8 @@ internal data class BoardTask(
     val details: String = "",
     val status: TaskStatus = TaskStatus.TODO,
     val progressPercent: Int? = null,
-    val isRunning: Boolean = false
+    val isRunning: Boolean = false,
+    val remoteTaskId: String? = null
 )
 
 internal enum class TaskStatus(val label: String) {
@@ -98,6 +99,35 @@ private fun AntigravityApp() {
         }
     }
     LaunchedEffect(tasks.toList()) { storage.save(tasks.toList()) }
+
+    // Poll only tasks actually created in Factory. No synthetic progress is generated locally.
+    LaunchedEffect(connectionStore, tasks.size) {
+        while (true) {
+            val baseUrl = connectionStore.baseUrl()
+            val token = connectionStore.readToken()
+            if (!baseUrl.isNullOrBlank() && !token.isNullOrBlank()) {
+                tasks.toList().filter { it.remoteTaskId != null }.forEach { tracked ->
+                    runCatching { FactoryApiClient.taskProgress(baseUrl, token, tracked.remoteTaskId!!) }
+                        .onSuccess { snapshot ->
+                            val index = tasks.indexOfFirst { it.id == tracked.id }
+                            if (index >= 0) {
+                                val current = tasks[index]
+                                tasks[index] = current.copy(
+                                    progressPercent = snapshot.progressPercent ?: current.progressPercent,
+                                    isRunning = snapshot.isRunning,
+                                    status = when (snapshot.status) {
+                                        "completed" -> TaskStatus.DONE
+                                        "running", "planning", "accepted", "queued", "review" -> TaskStatus.IN_PROGRESS
+                                        else -> current.status
+                                    }
+                                )
+                            }
+                        }
+                }
+            }
+            kotlinx.coroutines.delay(2500)
+        }
+    }
 
     var selectedTab by rememberSaveable { mutableStateOf(TaskStatus.TODO.name) }
     val selectedStatus = TaskStatus.valueOf(selectedTab)
