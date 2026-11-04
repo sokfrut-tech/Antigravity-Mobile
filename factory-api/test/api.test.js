@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import worker from "../src/index.js";
 
 const allowedOrigin = "https://mobile.example.test";
+const runnerToken = "runner-token-" + "x".repeat(40);
 
 test("health endpoint reports configured bootstrap service", async () => {
   const request = new Request("https://api.example.test/v1/health", {
@@ -103,7 +104,7 @@ test("runner events require a separate runner credential", async () => {
       body: JSON.stringify({ type: "progress", summary: "Working", progressPercent: 25 })
     }),
     { DB: {}, API_TOKEN_SHA256: createHash("sha256").update("0123456789abcdef0123456789abcdef").digest("hex"),
-      FACTORY_RUNNER_TOKEN: "runner-secret-value", CORS_ORIGIN: allowedOrigin }
+      FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin }
   );
   assert.equal(response.status, 401);
 });
@@ -112,10 +113,10 @@ test("runner event rejects out-of-range progress", async () => {
   const response = await worker.fetch(
     new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/events", {
       method: "POST",
-      headers: { Origin: allowedOrigin, Authorization: "Bearer runner-secret-value" },
+      headers: { Origin: allowedOrigin, Authorization: `Bearer ${runnerToken}` },
       body: JSON.stringify({ type: "progress", summary: "Working", progressPercent: 140 })
     }),
-    { DB: {}, FACTORY_RUNNER_TOKEN: "runner-secret-value", CORS_ORIGIN: allowedOrigin }
+    { DB: {}, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin }
   );
   assert.equal(response.status, 400);
   assert.equal((await response.json()).error.code, "invalid_progress");
@@ -138,10 +139,10 @@ test("trusted runner can append a bounded progress event", async () => {
   const response = await worker.fetch(
     new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/events", {
       method: "POST",
-      headers: { Origin: allowedOrigin, Authorization: "Bearer runner-secret-value", "Content-Type": "application/json" },
+      headers: { Origin: allowedOrigin, Authorization: `Bearer ${runnerToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ type: "progress", summary: "Agent completed analysis", progressPercent: 42, status: "running" })
     }),
-    { DB: db, FACTORY_RUNNER_TOKEN: "runner-secret-value", CORS_ORIGIN: allowedOrigin }
+    { DB: db, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin }
   );
   assert.equal(response.status, 201);
   assert.equal(batches, 1);
