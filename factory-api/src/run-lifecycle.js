@@ -101,11 +101,16 @@ export async function transitionProviderRun(request, runId, env) {
 
   let extraData = {};
   if (transition.requires === "providerRequestId") {
-    if (typeof body.providerRequestId !== "string" ||
-        !/^[A-Za-z0-9._:-]{1,200}$/.test(body.providerRequestId)) {
-      return error("provider_request_id_required", "A validated providerRequestId is required for acceptance.", 400);
+    if (typeof body.providerRequestId === "string" &&
+        /^[A-Za-z0-9._:-]{1,200}$/.test(body.providerRequestId)) {
+      extraData.providerRequestId = body.providerRequestId;
+    } else if (body.responseReceived === true) {
+      // Some provider APIs return a complete response without exposing a request ID.
+      // The successful HTTP response is direct acceptance evidence; do not invent an ID.
+      extraData.responseReceived = true;
+    } else {
+      return error("provider_request_id_required", "A validated providerRequestId or confirmed responseReceived evidence is required.", 400);
     }
-    extraData.providerRequestId = body.providerRequestId;
   } else if (transition.requires === "definite_rejection" || transition.requires === "execution_failed") {
     const requiredKind = transition.requires;
     if (body.failureKind !== requiredKind || typeof body.reasonCode !== "string" ||
