@@ -26,6 +26,7 @@ Migration `0002_task_runs.sql` adds a persistent run registry with unique `(task
 - `GET /v1/tasks/{uuid}` — task detail.
 - `GET /v1/tasks/{uuid}/events` — ordered event history for the mobile owner client.\n- `POST /v1/tasks/{uuid}/events` — append non-terminal progress/status events from a trusted runner only; it cannot declare a task completed. Requires the separate `FACTORY_RUNNER_TOKEN` secret.
 - `POST /v1/tasks/{uuid}/runs` — creates an authenticated durable claim only; it does not contact Claude/Gemini. Requires `FACTORY_RUNNER_TOKEN`.
+- `POST /v1/runs/{uuid}/transitions` — runner-only compare-and-set transition with an append-only event in one D1 batch. Completion, cancellation, unknown-outcome reconciliation and retry remain disabled. Requires `FACTORY_RUNNER_TOKEN`.
 
 ## Deploy prerequisites
 
