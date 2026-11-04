@@ -55,7 +55,7 @@ beforeEach(async () => {
   });
   await mf.ready;
   DB = await mf.getD1Database("DB");
-  for (const name of ["0001_initial.sql", "0002_task_runs.sql", "0003_task_run_event_guards.sql"]) {
+  for (const name of ["0001_initial.sql", "0002_task_runs.sql", "0003_task_run_event_guards.sql", "0004_task_run_outputs.sql"]) {
     const sql = (await readFile(join(migrationsDir, name), "utf8"))
       .replace("PRAGMA foreign_keys = ON;", "")
       .split(/\r?\n/).filter(line => !line.trimStart().startsWith("--")).join("\n");
