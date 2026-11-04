@@ -10,7 +10,7 @@ import java.net.URI
 import java.net.URL
 import java.security.MessageDigest
 
-internal object FactoryApiClient {
+internal data class TaskProgressSnapshot(val progressPercent: Int?, val isRunning: Boolean, val status: String?)\n\ninternal data class TaskSubmission(val id: String)\n\ninternal object FactoryApiClient {
     suspend fun health(baseUrl: String, token: String?): String = withContext(Dispatchers.IO) {
         val normalized = baseUrl.trim().trimEnd('/')
         val uri = runCatching { URI(normalized) }.getOrNull()
@@ -48,7 +48,7 @@ internal object FactoryApiClient {
         localTaskId: Long,
         title: String,
         details: String
-    ): String = withContext(Dispatchers.IO) {
+    ): TaskSubmission = withContext(Dispatchers.IO) {
         require(token.isNotBlank()) { "Сначала сохраните bearer token в настройках подключения." }
         val normalized = baseUrl.trim().trimEnd('/')
         val uri = runCatching { URI(normalized) }.getOrNull()
@@ -92,7 +92,7 @@ internal object FactoryApiClient {
             }
             val taskId = JSONObject(responseBody).optString("id")
             if (taskId.isBlank()) throw IOException("Factory API ответил без ID задачи.")
-            "Задача отправлена в Factory. ID: $taskId"
+            TaskSubmission(taskId)
         } finally {
             connection.disconnect()
         }
