@@ -124,6 +124,7 @@ async function createTask(request, env, userId) {
   if (parsed.tooLarge) return error("payload_too_large", "Request body exceeds 256 KB.", 413);
   if (parsed.invalid) return error("invalid_json", "Request body must be valid UTF-8 JSON.", 400);
   const body = parsed.body;
+  if (body.costAcknowledged !== true) return error("cost_ack_required", "Explicit acknowledgement of possible provider API charges is required.", 400);
   if (!body || typeof body !== "object" || Array.isArray(body)) return error("invalid_task", "Request body must be a JSON object.", 400);
   if (!validString(body.title, 1, 200) ||
       !validString(body.brief, 1, 20000) ||
