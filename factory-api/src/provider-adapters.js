@@ -54,7 +54,12 @@ function extractText(provider, body) {
     return (body.content || []).filter(part => part.type === "text").map(part => part.text || "").join("\n").trim();
   }
   if (provider === "gemini") {
-    return (body.candidates?.[0]?.content?.parts || []).map(part => part.text || "").join("\n").trim();
+    return (body.steps || [])
+      .filter(step => step.type === "model_output")
+      .flatMap(step => step.content || [])
+      .filter(part => part.type === "text")
+      .map(part => part.text || "")
+      .join("\n").trim();
   }
   if (provider === "openai") {
     if (typeof body.output_text === "string") return body.output_text.trim();
@@ -92,9 +97,9 @@ export async function executeProvider({ provider, model, prompt, env, fetchImpl 
     };
     body = { model: selectedModel, max_tokens: 4096, messages: [{ role: "user", content: prompt }] };
   } else if (provider === "gemini") {
-    endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent`;
+    endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
     headers = { "x-goog-api-key": apiKey, "content-type": "application/json" };
-    body = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+    body = { model: selectedModel, input: prompt, store: false };
   } else {
     endpoint = "https://api.openai.com/v1/responses";
     headers = { "authorization": `Bearer ${apiKey}`, "content-type": "application/json" };
