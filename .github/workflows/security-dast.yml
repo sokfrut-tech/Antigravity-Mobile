@@ -1,0 +1,36 @@
+name: Authorized Security DAST
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: HTTPS staging URL whose hostname is allowlisted in the security-lab environment
+        required: true
+        type: string
+      authorization:
+        description: Type exactly I_OWN_THIS_TARGET_OR_HAVE_WRITTEN_PERMISSION
+        required: true
+        type: string
+      profile:
+        description: Scanner profile
+        required: true
+        type: choice
+        options:
+          - zap
+          - wapiti
+          - nuclei
+          - all
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  dast:
+    uses: sokfrut-tech/Universal-AI-Factory/.github/workflows/factory-dast-reusable.yml@61ed38fdb98bd1a992ff5f4b03d515d48d30af76
+    with:
+      target_url: ${{ inputs.target_url }}
+      authorization: ${{ inputs.authorization }}
+      profile: ${{ inputs.profile }}
+    permissions:
+      contents: read

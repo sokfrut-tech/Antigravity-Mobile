@@ -9,7 +9,7 @@ const PROVIDERS = {
   },
   openai: {
     secret: "OPENAI_API_KEY",
-    defaultModel: "gpt-6-astra"
+    defaultModel: "gpt-6.1-sol"
   }
 };
 
@@ -21,12 +21,45 @@ export function providerAvailability(env) {
   }));
 }
 
+async function readResponseTextLimited(response, maxBytes) {
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error("provider_response_too_large");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+}
+
 function extractText(provider, body) {
   if (provider === "claude") {
     return (body.content || []).filter(part => part.type === "text").map(part => part.text || "").join("\n").trim();
   }
   if (provider === "gemini") {
-    return (body.candidates?.[0]?.content?.parts || []).map(part => part.text || "").join("\n").trim();
+    return (body.steps || [])
+      .filter(step => step.type === "model_output")
+      .flatMap(step => step.content || [])
+      .filter(part => part.type === "text")
+      .map(part => part.text || "")
+      .join("\n").trim();
   }
   if (provider === "openai") {
     if (typeof body.output_text === "string") return body.output_text.trim();
@@ -64,9 +97,9 @@ export async function executeProvider({ provider, model, prompt, env, fetchImpl 
     };
     body = { model: selectedModel, max_tokens: 4096, messages: [{ role: "user", content: prompt }] };
   } else if (provider === "gemini") {
-    endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent`;
+    endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
     headers = { "x-goog-api-key": apiKey, "content-type": "application/json" };
-    body = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+    body = { model: selectedModel, input: prompt, store: false };
   } else {
     endpoint = "https://api.openai.com/v1/responses";
     headers = { "authorization": `Bearer ${apiKey}`, "content-type": "application/json" };
@@ -77,9 +110,10 @@ export async function executeProvider({ provider, model, prompt, env, fetchImpl 
   try {
     response = await fetchImpl(endpoint, {
       method: "POST",
+      redirect: "error",
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(55_000)
+      signal: AbortSignal.timeout(25_000)
     });
   } catch {
     throw Object.assign(new Error("Provider request ended without a confirmed response; outcome is unknown."), {
@@ -104,8 +138,7 @@ export async function executeProvider({ provider, model, prompt, env, fetchImpl 
 
   let data;
   try {
-    const raw = await response.text();
-    if (raw.length > 256_000) throw new Error("response_too_large");
+    const raw = await readResponseTextLimited(response, 256_000);
     data = JSON.parse(raw);
   } catch {
     throw Object.assign(new Error("Provider returned an unreadable response; outcome is unknown."), {

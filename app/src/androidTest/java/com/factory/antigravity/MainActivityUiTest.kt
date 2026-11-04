@@ -20,6 +20,7 @@ class MainActivityUiTest {
     fun userCanOpenConnectionSettingsAndCreateTask() {
         composeRule.onNodeWithText("Antigravity Mobile", substring = true).assertIsDisplayed()
 
+        composeRule.onNodeWithText("Задачи").performClick()
         composeRule.onNodeWithText("API").performClick()
         composeRule.onNodeWithText("Подключение к Factory API").assertIsDisplayed()
         composeRule.onNodeWithText("Отмена").performClick()
@@ -31,7 +32,7 @@ class MainActivityUiTest {
 
         composeRule.onNodeWithText("Проверка на Android-эмуляторе").assertIsDisplayed()
         composeRule.onAllNodesWithText("← Назад")[0].assertIsDisplayed()
-        composeRule.onAllNodesWithText("⚡ Фабрика")[0].assertIsDisplayed()
+        composeRule.onAllNodesWithText("⚡ Запустить агента")[0].assertIsDisplayed()
         composeRule.onAllNodesWithText("Удалить")[0].assertIsDisplayed()
         composeRule.onNodeWithText("Новые (2)").assertIsDisplayed()
         composeRule.onNodeWithText("В работе (1)").performClick()

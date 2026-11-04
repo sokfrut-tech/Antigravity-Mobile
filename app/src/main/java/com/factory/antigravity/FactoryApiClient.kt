@@ -12,7 +12,7 @@ import java.security.MessageDigest
 
 internal data class TaskProgressSnapshot(val progressPercent: Int?, val isRunning: Boolean, val status: String?)
 
-internal data class TaskSubmission(val id: String)
+internal data class TaskSubmission(val id: String)\ninternal data class ProviderAvailability(val id: String, val configured: Boolean, val defaultModel: String)\ninternal data class TaskDispatchResult(val runId: String, val provider: String, val model: String, val status: String, val output: String)
 
 internal object FactoryApiClient {
     suspend fun health(baseUrl: String, token: String?): String = withContext(Dispatchers.IO) {
@@ -103,6 +103,96 @@ internal object FactoryApiClient {
     }
 
 
+
+    suspend fun providers(baseUrl: String, token: String): List<ProviderAvailability> = withContext(Dispatchers.IO) {
+        val normalized = baseUrl.trim().trimEnd('/')
+        val uri = runCatching { URI(normalized) }.getOrNull()
+        require(uri != null && uri.scheme == "https" && !uri.host.isNullOrBlank() &&
+            uri.userInfo == null && uri.query == null && uri.fragment == null) {
+            "Нужен корректный HTTPS-адрес Factory API."
+        }
+        val connection = (URL("$normalized/v1/providers").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 10_000
+            readTimeout = 10_000
+            setRequestProperty("Authorization", "Bearer $token")
+        }
+        try {
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) throw IOException("Не удалось проверить провайдеров (HTTP $code).")
+            val array = JSONObject(body).optJSONArray("providers") ?: JSONArray()
+            buildList {
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    add(ProviderAvailability(item.optString("id"), item.optBoolean("configured"), item.optString("defaultModel")))
+                }
+            }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    suspend fun dispatchTask(
+        baseUrl: String,
+        token: String,
+        remoteTaskId: String,
+        localTaskId: Long,
+        title: String,
+        details: String,
+        attempt: Int
+    ): TaskDispatchResult = withContext(Dispatchers.IO) {
+        val normalized = baseUrl.trim().trimEnd('/')
+        val uri = runCatching { URI(normalized) }.getOrNull()
+        require(uri != null && uri.scheme == "https" && !uri.host.isNullOrBlank() &&
+            uri.userInfo == null && uri.query == null && uri.fragment == null) {
+            "Нужен корректный HTTPS-адрес Factory API."
+        }
+        val safeId = remoteTaskId.takeIf { it.matches(Regex("[0-9a-fA-F-]{36}")) }
+            ?: throw IOException("Некорректный ID задачи Factory.")
+        val fingerprint = MessageDigest.getInstance("SHA-256")
+            .digest("$title\\n$details".toByteArray(Charsets.UTF_8))
+            .take(12).joinToString("") { "%02x".format(it) }
+        val runKey = "mobile-run-$localTaskId-$fingerprint-$attempt"
+        val body = JSONObject().put("runKey", runKey).put("provider", "auto").put("role", "implementer").put("costAcknowledged", true)
+        val connection = (URL("$normalized/v1/tasks/$safeId/dispatch").openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 10_000
+            readTimeout = 40_000
+            doOutput = true
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+        }
+        try {
+            connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            val code = connection.responseCode
+            val stream = if (code in 200..299 || code == 202) connection.inputStream else connection.errorStream
+            val responseBody = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val response = runCatching { JSONObject(responseBody) }.getOrNull() ?: JSONObject()
+            if (code !in 200..299 || code == 202) {
+                val message = response.optJSONObject("error")?.optString("message").orEmpty()
+                val status = response.optString("status")
+                throw IOException(when {
+                    status == "outcome_unknown" -> "Ответ агента пока неизвестен. Повторный запуск заблокирован во избежание дублирования."
+                    message.isNotBlank() -> message
+                    else -> "Фабрика вернула HTTP $code."
+                })
+            }
+            val output = response.optString("output")
+            if (output.isBlank()) throw IOException("Фабрика не вернула текстовый результат.")
+            TaskDispatchResult(
+                runId = response.optString("runId"),
+                provider = response.optString("provider"),
+                model = response.optString("model"),
+                status = response.optString("status"),
+                output = output
+            )
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     internal suspend fun taskProgress(baseUrl: String, token: String, remoteTaskId: String): TaskProgressSnapshot =
         withContext(Dispatchers.IO) {
             val normalized = baseUrl.trim().trimEnd('/')
@@ -139,7 +229,7 @@ internal object FactoryApiClient {
                 }
                 TaskProgressSnapshot(
                     progressPercent = progress,
-                    isRunning = status in setOf("queued", "accepted", "planning", "running", "review"),
+                    isRunning = status in setOf("queued", "accepted", "planning", "running"),
                     status = status
                 )
             } finally {
