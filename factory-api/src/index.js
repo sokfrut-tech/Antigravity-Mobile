@@ -302,6 +302,17 @@ export default {
       return respond(await recordRunnerEvent(request, runnerEventMatch[1], env));
     }
 
+    const runnerRunMatch = /^\\/v1\\/tasks\\/([0-9a-f-]{36})\\/runs$/.exec(path);
+    if (runnerRunMatch && request.method === "POST") {
+      const expected = env.FACTORY_RUNNER_TOKEN;
+      const supplied = (request.headers.get("Authorization") || "").replace(/^Bearer /, "");
+      if (!expected || !constantTimeEqual(supplied, expected)) {
+        return respond(error("unauthorized_runner", "A valid factory runner credential is required.", 401));
+      }
+      // Authentication boundary is established; provider dispatch remains intentionally disabled.
+      return respond(error("provider_not_configured", "No provider worker is connected yet; task dispatch is intentionally disabled.", 503));
+    }
+
     const userId = await authenticate(request, env);
     if (!userId) return respond(error("unauthorized", "A valid bearer token is required.", 401));
     if (!env.DB) return respond(error("service_unavailable", "D1 database binding is missing.", 503));
@@ -313,9 +324,6 @@ export default {
       if (match) {
         const [, id, child] = match;
         if (child === "events" && request.method === "GET") return respond(await getEvents(id, url, env, userId));
-        if (child === "runs" && request.method === "POST") {
-          return respond(error("provider_not_configured", "No provider worker is connected yet; task dispatch is intentionally disabled.", 503));
-        }
         if (!child && request.method === "GET") return respond(await getTask(id, env, userId));
       }
       return respond(error("not_found", "Endpoint not found.", 404));
