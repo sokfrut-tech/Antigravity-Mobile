@@ -1,4 +1,5 @@
 import { transitionProviderRun } from "./run-lifecycle.js";
+import { executeProvider, providerAvailability } from "./provider-adapters.js";
 
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
@@ -217,7 +218,7 @@ async function claimProviderRun(request, taskId, env) {
   }
   const body = parsed.body;
   if (!validString(body.runKey, 8, 128) ||
-      !["claude", "gemini"].includes(body.provider) ||
+      !["claude", "gemini", "openai"].includes(body.provider) ||
       !["implementer", "reviewer", "researcher", "tester"].includes(body.role) ||
       !validString(body.model, 1, 120) ||
       !body.payload || typeof body.payload !== "object" || Array.isArray(body.payload)) {
@@ -285,6 +286,146 @@ async function claimProviderRun(request, taskId, env) {
   ).bind(taskId).first();
   if (active) return error("active_run_exists", "Another non-terminal run already reserves this task.", 409);
   return error("run_claim_conflict", "Run claim was not created. No provider request was sent.", 409);
+}
+
+async function dispatchTask(request, taskId, env, userId) {
+  if (!env.FACTORY_RUNNER_TOKEN) return error("runner_not_configured", "Trusted Factory runner is not configured.", 503);
+  const task = await env.DB.prepare(
+    "SELECT id,user_id,title,brief,acceptance_criteria_json,preferred_provider,preferred_role FROM tasks WHERE id=? AND user_id=?"
+  ).bind(taskId, userId).first();
+  if (!task) return error("not_found", "Task not found.", 404);
+
+  const parsed = await readJsonBodyLimited(request, 8_192);
+  if (parsed.tooLarge) return error("payload_too_large", "Dispatch request exceeds 8 KB.", 413);
+  if (parsed.invalid || !parsed.body || typeof parsed.body !== "object" || Array.isArray(parsed.body)) {
+    return error("invalid_dispatch", "Dispatch request must be a JSON object.", 400);
+  }
+  const body = parsed.body;
+  if (!validString(body.runKey, 8, 128)) return error("invalid_run_key", "A stable runKey (8–128 characters) is required.", 400);
+  const requestedProvider = body.provider || "auto";
+  if (!["auto", "claude", "gemini", "openai"].includes(requestedProvider)) {
+    return error("invalid_provider", "Choose auto, claude, gemini or openai.", 400);
+  }
+  const availability = providerAvailability(env);
+  const configured = availability.filter(item => item.configured);
+  const selected = requestedProvider === "auto"
+    ? configured.find(item => !task.preferred_provider || item.id === task.preferred_provider)
+    : availability.find(item => item.id === requestedProvider && item.configured);
+  if (!selected) {
+    return json({
+      error: { code: "provider_not_configured", message: "No configured provider is available for this task. Add provider API credentials as Worker secrets; no run was created." },
+      providers: availability.map(({ id, configured: ready }) => ({ id, configured: ready }))
+    }, 503);
+  }
+  if (task.preferred_provider && task.preferred_provider !== selected.id) {
+    return error("run_policy_conflict", "Selected provider does not match this task's configured preference.", 409);
+  }
+  if (task.preferred_role && body.role && task.preferred_role !== body.role) {
+    return error("run_policy_conflict", "Selected role does not match this task's configured preference.", 409);
+  }
+  const role = body.role || task.preferred_role || "implementer";
+  const allowedRoles = ["implementer", "reviewer", "researcher", "tester"];
+  if (!allowedRoles.includes(role)) return error("invalid_role", "Unsupported agent role.", 400);
+  const model = body.model || selected.defaultModel;
+  const criteria = JSON.parse(task.acceptance_criteria_json || "[]");
+  const prompt = [
+    "You are an AI specialist working inside Universal AI Factory.",
+    `Role: ${role}. Return a substantive, evidence-based response. Do not claim to have edited repositories, run tests, deployed or contacted other agents unless the request explicitly supplies evidence.`,
+    `Task title: ${task.title}`,
+    `Task brief:\n${task.brief}`,
+    `Acceptance criteria:\n${criteria.map((item, index) => `${index + 1}. ${item}`).join("\n")}`,
+    "If implementation is requested, provide exact file-level changes or a complete patch proposal and list tests that must be run. Clearly separate completed work from recommendations and unknowns."
+  ].join("\n\n");
+  const claimRequest = new Request(`https://factory.internal/v1/tasks/${taskId}/runs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      runKey: body.runKey,
+      provider: selected.id,
+      role,
+      model,
+      payload: { prompt }
+    })
+  });
+  const claim = await claimProviderRun(claimRequest, taskId, env);
+  if (claim.status !== 201) {
+    if (claim.status === 200) {
+      const replay = await claim.json();
+      return json({ error: { code: "run_already_claimed", message: "This run key already exists. It was not dispatched again." }, run: replay }, 409);
+    }
+    return claim;
+  }
+  const run = await claim.json();
+  const runnerRequest = (payload) => new Request(`https://factory.internal/v1/runs/${run.runId}/transitions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${env.FACTORY_RUNNER_TOKEN}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const started = await transitionProviderRun(runnerRequest({
+    expectedStatus: "claimed", nextStatus: "dispatching", summary: `Dispatching to ${selected.id}`
+  }), run.runId, env);
+  if (started.status !== 201) return error("run_start_failed", "Run was claimed but dispatch could not safely start. Do not retry with a new run key.", 503);
+
+  let result;
+  try {
+    result = await executeProvider({ provider: selected.id, model, prompt, env });
+  } catch (failure) {
+    const ambiguous = failure.kind === "ambiguous";
+    await transitionProviderRun(runnerRequest(ambiguous ? {
+      expectedStatus: "dispatching", nextStatus: "outcome_unknown",
+      outcomeKind: "ambiguous_response", summary: "Provider outcome is unknown; automatic retry is blocked"
+    } : {
+      expectedStatus: "dispatching", nextStatus: "failed",
+      failureKind: "definite_rejection", reasonCode: failure.reasonCode || "provider_rejected",
+      summary: "Provider rejected the request before accepting work"
+    }), run.runId, env);
+    return json({
+      runId: run.runId,
+      status: ambiguous ? "outcome_unknown" : "failed",
+      error: { code: ambiguous ? "provider_outcome_unknown" : "provider_rejected", message: failure.message }
+    }, ambiguous ? 202 : 502);
+  }
+
+  const accepted = await transitionProviderRun(runnerRequest({
+    expectedStatus: "dispatching", nextStatus: "accepted",
+    ...(result.providerRequestId ? { providerRequestId: result.providerRequestId } : { responseReceived: true }),
+    summary: "Provider returned a valid response"
+  }), run.runId, env);
+  if (accepted.status !== 201) {
+    return json({ runId: run.runId, status: "outcome_unknown", error: { code: "ledger_acceptance_unconfirmed", message: "A provider response arrived, but its acceptance could not be recorded. Do not retry automatically." } }, 202);
+  }
+
+  const now = new Date().toISOString();
+  try {
+    await env.DB.prepare(
+      "INSERT INTO task_run_outputs(run_id,task_id,user_id,provider,model,provider_request_id,output_text,created_at) VALUES(?,?,?,?,?,?,?,?)"
+    ).bind(run.runId, taskId, userId, result.provider, result.model, result.providerRequestId, result.output, now).run();
+  } catch {
+    return error("output_persistence_failed", "Provider responded, but the output could not be saved. The run remains accepted and must not be repeated.", 503);
+  }
+  const reviewed = await transitionProviderRun(runnerRequest({
+    expectedStatus: "accepted", nextStatus: "review", summary: "Provider output saved and awaits independent review"
+  }), run.runId, env);
+  if (reviewed.status !== 201) {
+    return json({ runId: run.runId, status: "accepted", output: result.output, error: { code: "review_transition_pending", message: "Output is saved; review state needs reconciliation." } }, 202);
+  }
+  await env.DB.prepare("UPDATE tasks SET status='review',updated_at=? WHERE id=? AND user_id=?")
+    .bind(now, taskId, userId).run();
+  return json({
+    runId: run.runId, taskId, provider: result.provider, model: result.model,
+    providerRequestId: result.providerRequestId, status: "review", output: result.output
+  }, 201);
+}
+
+async function getRunOutput(taskId, runId, env, userId) {
+  const row = await env.DB.prepare(
+    "SELECT o.run_id,o.task_id,o.provider,o.model,o.provider_request_id,o.output_text,o.created_at FROM task_run_outputs o JOIN tasks t ON t.id=o.task_id WHERE o.task_id=? AND o.run_id=? AND o.user_id=? AND t.user_id=?"
+  ).bind(taskId, runId, userId, userId).first();
+  if (!row) return error("not_found", "Run output not found.", 404);
+  return json({
+    runId: row.run_id, taskId: row.task_id, provider: row.provider, model: row.model,
+    providerRequestId: row.provider_request_id, output: row.output_text, createdAt: row.created_at
+  });
 }
 
 async function recordRunnerEvent(request, id, env) {
@@ -414,6 +555,13 @@ export default {
     if (!env.DB) return respond(error("service_unavailable", "D1 database binding is missing.", 503));
 
     try {
+      if (path === "/v1/providers" && request.method === "GET") {
+        return respond(json({ providers: providerAvailability(env).map(({ id, configured, defaultModel }) => ({ id, configured, defaultModel })) }));
+      }
+      const dispatchMatch = /^\\/v1\\/tasks\\/([0-9a-f-]{36})\\/dispatch$/.exec(path);
+      if (dispatchMatch && request.method === "POST") return respond(await dispatchTask(request, dispatchMatch[1], env, userId));
+      const outputMatch = /^\\/v1\\/tasks\\/([0-9a-f-]{36})\\/runs\\/([0-9a-f-]{36})\\/output$/.exec(path);
+      if (outputMatch && request.method === "GET") return respond(await getRunOutput(outputMatch[1], outputMatch[2], env, userId));
       if (path === "/v1/tasks" && request.method === "GET") return respond(await listTasks(url, env, userId));
       if (path === "/v1/tasks" && request.method === "POST") return respond(await createTask(request, env, userId));
       const match = /^\/v1\/tasks\/([0-9a-f-]{36})(?:\/(events|runs))?$/.exec(path);
