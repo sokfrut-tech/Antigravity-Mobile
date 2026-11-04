@@ -58,3 +58,8 @@ Cloudflare D1 migration: `migrations/0002_task_runs.sql`.
 ## Verification boundary
 
 Applying this migration locally in CI proves SQL syntax and migration compatibility only. It does not prove a remote D1 database exists, the Worker is deployed, or Claude/Gemini are connected.
+
+
+## Legacy task-event boundary
+
+The older task-level runner event endpoint is retained for progress/status compatibility, but it cannot emit a `completed` event or set task status to `completed`. Completion must be introduced through a separately reviewed run-lifecycle operation that validates completion evidence against the durable run. A progress event, a provider response, or a runner assertion alone is not completion evidence.
