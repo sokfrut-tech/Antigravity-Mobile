@@ -5,7 +5,7 @@ const PROVIDERS = {
   },
   claude: {
     secret: "ANTHROPIC_API_KEY",
-    defaultModel: "claude-sonnet-5-5"
+    defaultModel: "claude-sonnet-5"
   },
   openai: {
     secret: "OPENAI_API_KEY",
