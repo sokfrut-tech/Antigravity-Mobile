@@ -63,3 +63,20 @@ The integration branch was reconciled with current `main` using a two-parent mer
 - Latest backend cost-control update: `71e8a345c0290a4865c4a7fbecc627756ed6834d` adds Gemini max_output_tokens=4096; corresponding provider test added in `23ef613717728fcff430f69f86d0b90f60d2679c`. Latest Factory API workflow is pending at the time of this snapshot; do not mark the final backend head fully verified until it passes.
 - APK artifact from Android run [41886066087](https://github.com/sokfrut-tech/Antigravity-Mobile/actions/runs/41886066087/artifacts/13350738496); extracted APK SHA-256: `6562feac3161fa815223d91ef386058ca237205e6433bb303d135a2676656257`; size 10,213,774 bytes; debug-signed; app version 0.3.0 / versionCode 5.
 - No provider keys configured, no live provider request, no Worker deployment, no remote D1 migration, no merge, and no physical OPPO test.
+
+
+## Verification refresh — 2026-11-04, integration branch head `f32ec45775084637aec8a79d67a8a0ef61b4dbae`
+
+This section supersedes older verification snapshots above where they conflict.
+
+- Factory API workflow [41910032846](https://github.com/sokfrut-tech/Antigravity-Mobile/actions/runs/41910032846): PASS.
+- Android build + unit tests job in [41910033864](https://github.com/sokfrut-tech/Antigravity-Mobile/actions/runs/41910033864): PASS.
+- CodeQL job within Android workflow: PASS.
+- Compose emulator UI job within Android workflow: still running at the time of this update; do not mark the Android workflow fully green until it completes.
+- Factory Security Gate [41910033675](https://github.com/sokfrut-tech/Antigravity-Mobile/actions/runs/41910033675): all jobs PASS, including CodeQL, Gitleaks, Semgrep and Trivy.
+- Therefore backend tests, Android build/unit tests and security scans have fresh exact-head evidence. The emulator UI job remains the only known outstanding Antigravity check at this snapshot.
+- The next documentation-only commit is not itself covered by these exact-head runs; CI should run again for that commit.
+
+## Execution runner — scope boundary
+
+PR #19 currently persists provider output for review. It does not clone target repositories, apply model patches, run target-project tests in an isolated sandbox, or request an independent review. The next engineering increment must implement those as a separate gated runner. Requirements: pinned base SHA; isolated checkout; path traversal/symlink/size and binary-change controls; no secrets in test environment; restricted network; bounded commands/time/resources; test/build/security evidence manifest; patch/diff artifact; independent reviewer; explicit owner approval before opening a PR. No direct pushes, merge, deployment or production mutations. This is planned work, not a claimed feature.
