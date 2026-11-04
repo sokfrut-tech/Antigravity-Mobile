@@ -124,7 +124,6 @@ async function createTask(request, env, userId) {
   if (parsed.tooLarge) return error("payload_too_large", "Request body exceeds 256 KB.", 413);
   if (parsed.invalid) return error("invalid_json", "Request body must be valid UTF-8 JSON.", 400);
   const body = parsed.body;
-  if (body.costAcknowledged !== true) return error("cost_ack_required", "Explicit acknowledgement of possible provider API charges is required.", 400);
   if (!body || typeof body !== "object" || Array.isArray(body)) return error("invalid_task", "Request body must be a JSON object.", 400);
   if (!validString(body.title, 1, 200) ||
       !validString(body.brief, 1, 20000) ||
@@ -316,6 +315,7 @@ async function dispatchTask(request, taskId, env, userId) {
     return error("invalid_dispatch", "Dispatch request must be a JSON object.", 400);
   }
   const body = parsed.body;
+  if (body.costAcknowledged !== true) return error("cost_ack_required", "Explicit acknowledgement of possible provider API charges is required.", 400);
   if (!validString(body.runKey, 8, 128)) return error("invalid_run_key", "A stable runKey (8–128 characters) is required.", 400);
   const requestedProvider = body.provider || "auto";
   if (!["auto", "claude", "gemini", "openai"].includes(requestedProvider)) {
