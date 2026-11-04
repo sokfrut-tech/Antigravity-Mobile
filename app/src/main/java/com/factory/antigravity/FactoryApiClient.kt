@@ -158,7 +158,7 @@ internal object FactoryApiClient {
         val connection = (URL("$normalized/v1/tasks/$safeId/dispatch").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 10_000
-            readTimeout = 70_000
+            readTimeout = 40_000
             doOutput = true
             setRequestProperty("Authorization", "Bearer $token")
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
