@@ -44,7 +44,8 @@ internal data class BoardTask(
     val isRunning: Boolean = false,
     val remoteTaskId: String? = null,
     val remoteRunId: String? = null,
-    val agentOutput: String? = null
+    val agentOutput: String? = null,
+    val dispatchAttempt: Int = 0
 )
 
 internal enum class TaskStatus(val label: String) {
@@ -279,10 +280,13 @@ internal fun AntigravityApp() {
                                             }
                                             val index = tasks.indexOfFirst { it.id == task.id }
                                             if (index >= 0) tasks[index] = tasks[index].copy(remoteTaskId = remoteId)
+                                            val attempt = (tasks.firstOrNull { it.id == task.id }?.dispatchAttempt ?: 0) + 1
+                                            val beforeDispatchIndex = tasks.indexOfFirst { it.id == task.id }
+                                            if (beforeDispatchIndex >= 0) tasks[beforeDispatchIndex] = tasks[beforeDispatchIndex].copy(dispatchAttempt = attempt)
                                             connectionStatus = "Передаём задачу выбранному провайдеру…"
                                             runCatching {
                                                 FactoryApiClient.dispatchTask(
-                                                    baseUrl, token, remoteId, task.id, task.title, task.details
+                                                    baseUrl, token, remoteId, task.id, task.title, task.details, attempt
                                                 )
                                             }.onSuccess { result ->
                                                 val currentIndex = tasks.indexOfFirst { it.id == task.id }
