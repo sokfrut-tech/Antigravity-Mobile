@@ -186,7 +186,7 @@ internal fun AntigravityApp() {
             bottomBar = {
                 Surface(color = MaterialTheme.colorScheme.surface) {
                     Text(
-                        "v0.2.3 · Задачи сохраняются на устройстве",
+                        "v0.3.0 · Задачи сохраняются на устройстве",
                         modifier = Modifier
                             .fillMaxWidth()
                             .navigationBarsPadding()
