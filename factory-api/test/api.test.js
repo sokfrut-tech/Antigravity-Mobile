@@ -120,3 +120,30 @@ test("runner event rejects out-of-range progress", async () => {
   assert.equal(response.status, 400);
   assert.equal((await response.json()).error.code, "invalid_progress");
 });
+
+
+test("trusted runner can append a bounded progress event", async () => {
+  let batches = 0;
+  const db = {
+    prepare: (sql) => ({
+      bind: (...args) => ({
+        first: async () => ({ id: "00000000-0000-4000-8000-000000000000", user_id: "owner" }),
+        all: async () => ({ results: [] }),
+        run: async () => ({ success: true }),
+        sql, args
+      })
+    }),
+    batch: async () => { batches += 1; return []; }
+  };
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/events", {
+      method: "POST",
+      headers: { Origin: allowedOrigin, Authorization: "Bearer runner-secret-value", "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "progress", summary: "Agent completed analysis", progressPercent: 42, status: "running" })
+    }),
+    { DB: db, FACTORY_RUNNER_TOKEN: "runner-secret-value", CORS_ORIGIN: allowedOrigin }
+  );
+  assert.equal(response.status, 201);
+  assert.equal(batches, 1);
+  assert.equal((await response.json()).accepted, true);
+});
