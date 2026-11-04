@@ -20,12 +20,16 @@ test("Gemini adapter sends key in header and extracts response text", async () =
     fetchImpl: async (url, init) => {
       captured = { url, init };
       return new Response(JSON.stringify({
-        candidates: [{ content: { parts: [{ text: "Review complete." }] } }]
+        id: "interaction_123",
+        status: "completed",
+        steps: [{ type: "model_output", content: [{ type: "text", text: "Review complete." }] }]
       }), { status: 200, headers: { "x-goog-request-id": "google-request-123" } });
     }
   });
   assert.match(captured.url, /gemini-3\.8-flash:generateContent$/);
   assert.equal(captured.init.headers["x-goog-api-key"], "never-log-this");
+  assert.equal(JSON.parse(captured.init.body).model, "gemini-3.8-flash");
+  assert.equal(JSON.parse(captured.init.body).store, false);
   assert.equal(result.output, "Review complete.");
   assert.equal(result.providerRequestId, "google-request-123");
 });
