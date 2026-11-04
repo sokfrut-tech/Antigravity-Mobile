@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 
 private enum class CommandScreen(val title: String, val shortTitle: String, val glyph: String) {
     OVERVIEW("Командный центр", "Обзор", "⌂"),
@@ -170,19 +171,49 @@ private fun OverviewScreen(onTasks: () -> Unit, onAgents: () -> Unit, onConnecti
 
 @Composable
 private fun AgentsScreen() {
+    val context = LocalContext.current
+    val connectionStore = remember(context) { SecureTokenStore(context) }
+    var apiStatus by remember { mutableStateOf("Проверка ещё не выполнялась") }
+    var providerStates by remember { mutableStateOf<Map<String, ProviderAvailability>>(emptyMap()) }
+    var refreshKey by remember { mutableStateOf(0) }
+
+    LaunchedEffect(refreshKey) {
+        val baseUrl = connectionStore.baseUrl()
+        val token = connectionStore.readToken()
+        if (baseUrl.isNullOrBlank() || token.isNullOrBlank()) {
+            apiStatus = "Сначала настройте Factory API в разделе «Задачи»"
+            providerStates = emptyMap()
+        } else {
+            apiStatus = "Проверяем Worker и D1…"
+            runCatching { FactoryApiClient.health(baseUrl, token) }
+                .onSuccess { apiStatus = "Worker + D1 доступны" }
+                .onFailure { apiStatus = it.message ?: "Factory API недоступен" }
+            runCatching { FactoryApiClient.providers(baseUrl, token) }
+                .onSuccess { states -> providerStates = states.associateBy { it.id } }
+                .onFailure { providerStates = emptyMap() }
+        }
+    }
+    fun providerLabel(id: String): String = when (providerStates[id]?.configured) {
+        true -> "Серверный ключ настроен; доступность проверится при запуске"
+        false -> "Ключ не настроен на сервере"
+        null -> "Статус неизвестен — проверьте Factory API"
+    }
+
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("КОМАНДА", color = Color(0xFFE0AE45), fontSize = 11.sp, fontWeight = FontWeight.Bold)
         Text("Специалисты ИИ", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-        Text("Роли можно назначать отдельно, а координатор сможет запускать независимые подзадачи параллельно.",
+        Text("Координатор выбирает доступного исполнителя. Если ключа нет, приложение не изображает подключение и не запускает фиктивную задачу.",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        AgentCard("◈", "Antigravity", "Координатор / автономный исполнитель", "Worker не подключён")
-        AgentCard("✦", "Claude", "Архитектура, анализ и ревью", "Провайдер не подключён")
-        AgentCard("✧", "Gemini", "Исследования, Android и мультимодальные задачи", "Провайдер не подключён")
-        AgentCard("◎", "OpenAI", "Планирование, инструменты и независимая проверка", "Провайдер не подключён")
+        StatusPanel("Factory API", apiStatus, "Проверяется реальный Worker и состояние D1. Ключи провайдеров не передаются в приложение.")
+        AgentCard("◈", "Antigravity", "Координатор / диспетчер задач", if (apiStatus == "Worker + D1 доступны") "Factory API доступен" else "Worker не подтверждён")
+        AgentCard("✦", "Claude", "Архитектура, анализ и ревью", providerLabel("claude"))
+        AgentCard("✧", "Gemini", "Исследования, Android и мультимодальные задачи", providerLabel("gemini"))
+        AgentCard("◎", "OpenAI", "Планирование и независимая проверка", providerLabel("openai"))
         AgentCard("＋", "Собственный агент", "Будущий частный агент Universal AI Factory", "Можно добавить позднее")
-        StatusPanel("Связь между агентами", "Ещё не активна",
-            "Передача сообщений будет иметь ID задачи, адресата, подтверждение получения и реальный ответ. Автоматическая квитанция GitHub не считается ответом модели.")
+        StatusPanel("Автоматический выбор", "Gemini → Claude → OpenAI",
+            "Выбирается первый настроенный серверный провайдер. При неоднозначном сетевом результате автоматический повтор запрещён.")
+        TextButton(onClick = { refreshKey++ }) { Text("Обновить состояние подключений") }
     }
 }
 
