@@ -184,3 +184,122 @@ test("provider run route accepts only runner authentication but keeps dispatch d
   assert.equal(response.status, 503);
   assert.equal((await response.json()).error.code, "provider_not_configured");
 });
+
+
+function providerRunDb({ preferredProvider = null, preferredRole = null } = {}) {
+  const taskId = "00000000-0000-4000-8000-000000000000";
+  const runs = new Map();
+  const events = [];
+  const db = {
+    prepare(sql) {
+      return {
+        sql,
+        args: [],
+        bind(...args) { this.args = args; return this; },
+        async first() {
+          if (sql.includes("FROM tasks WHERE id=?")) {
+            return { id: taskId, user_id: "owner", preferred_provider: preferredProvider, preferred_role: preferredRole };
+          }
+          if (sql.includes("FROM task_runs WHERE task_id=? AND run_key=?")) {
+            return [...runs.values()].find(row => row.task_id === this.args[0] && row.run_key === this.args[1]) || null;
+          }
+          if (sql.includes("FROM task_runs WHERE task_id=? AND status NOT IN")) {
+            return [...runs.values()].find(row => row.task_id === this.args[0] && !["failed", "completed", "cancelled"].includes(row.status)) || null;
+          }
+          return null;
+        }
+      };
+    },
+    async batch(statements) {
+      const claim = statements[0];
+      const [id, task, user, runKey, provider, role, dispatchToken, fingerprint, now] = claim.args;
+      const sameKey = [...runs.values()].find(row => row.task_id === task && row.run_key === runKey);
+      const active = [...runs.values()].find(row => row.task_id === task && !["failed", "completed", "cancelled"].includes(row.status));
+      if (!sameKey && !active) {
+        runs.set(id, {
+          id, task_id: task, user_id: user, run_key: runKey, provider, role,
+          status: "claimed", attempt: 1, dispatch_token: dispatchToken,
+          request_fingerprint: fingerprint, created_at: now, updated_at: now,
+          provider_request_id: null
+        });
+        events.push({ runId: id, taskId: task, sequence: 1, type: "claimed" });
+      }
+      return [];
+    }
+  };
+  return { DB: db, runs, events, taskId };
+}
+
+function providerRunRequest(taskId, token, body) {
+  return new Request(`https://api.example.test/v1/tasks/${taskId}/runs`, {
+    method: "POST",
+    headers: { Origin: allowedOrigin, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+}
+
+const runnerToken = "runner-secret-value-0123456789abcdef0123456789";
+const validRunBody = {
+  runKey: "stable-run-key-001",
+  provider: "claude",
+  role: "implementer",
+  model: "claude-sonnet",
+  payload: { prompt: "Review task", options: { temperature: 0 } }
+};
+
+test("provider run claim is durable and same-key retry returns the existing run", async () => {
+  const store = providerRunDb();
+  const first = await worker.fetch(providerRunRequest(store.taskId, runnerToken, validRunBody), {
+    ...store, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin
+  });
+  assert.equal(first.status, 201);
+  const firstBody = await first.json();
+  assert.equal(firstBody.status, "claimed");
+  assert.equal(firstBody.replayed, false);
+  const replay = await worker.fetch(providerRunRequest(store.taskId, runnerToken, {
+    ...validRunBody, payload: { options: { temperature: 0 }, prompt: "Review task" }
+  }), { ...store, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin });
+  assert.equal(replay.status, 200);
+  const replayBody = await replay.json();
+  assert.equal(replayBody.runId, firstBody.runId);
+  assert.equal(replayBody.replayed, true);
+  assert.equal(store.runs.size, 1);
+  assert.equal(store.events.length, 1);
+});
+
+test("provider run claim rejects a reused key with a different fingerprint", async () => {
+  const store = providerRunDb();
+  await worker.fetch(providerRunRequest(store.taskId, runnerToken, validRunBody), {
+    ...store, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin
+  });
+  const response = await worker.fetch(providerRunRequest(store.taskId, runnerToken, {
+    ...validRunBody, payload: { prompt: "Different work" }
+  }), { ...store, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin });
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).error.code, "run_key_conflict");
+  assert.equal(store.runs.size, 1);
+  assert.equal(store.events.length, 1);
+});
+
+test("provider run claim blocks a different key while a run is active", async () => {
+  const store = providerRunDb();
+  await worker.fetch(providerRunRequest(store.taskId, runnerToken, validRunBody), {
+    ...store, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin
+  });
+  const response = await worker.fetch(providerRunRequest(store.taskId, runnerToken, {
+    ...validRunBody, runKey: "another-run-key-002"
+  }), { ...store, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin });
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).error.code, "active_run_exists");
+  assert.equal(store.runs.size, 1);
+});
+
+test("provider run claim enforces task provider and role preferences", async () => {
+  const store = providerRunDb({ preferredProvider: "gemini", preferredRole: "reviewer" });
+  const response = await worker.fetch(providerRunRequest(store.taskId, runnerToken, validRunBody), {
+    ...store, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin
+  });
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).error.code, "run_policy_conflict");
+  assert.equal(store.runs.size, 0);
+});
