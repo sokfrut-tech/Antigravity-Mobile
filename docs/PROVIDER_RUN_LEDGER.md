@@ -1,15 +1,18 @@
 # Durable provider run ledger
 
-Status: claim endpoint implemented on the feature branch; not deployed, 2026-11-04.
+Status: server-side one-shot provider dispatch implemented on the integration branch; not deployed, 2026-11-04.
 
 ## Implemented claim endpoint
 
-`POST /v1/tasks/:id/runs` authenticates only the trusted runner and creates a durable claim plus its first append-only event in one D1 batch. It accepts an allowlisted provider (`claude` or `gemini`), role, model, run key and object payload. The normalized request is fingerprinted; raw provider payload and credentials are not stored. Task-level preferred provider/role constraints are enforced.
+`POST /v1/tasks/:id/runs` authenticates only the trusted runner and creates a durable claim plus its first append-only event in one D1 batch. The trusted-runner claim endpoint accepts `claude`, `gemini` or `openai`. The authenticated owner endpoint `POST /v1/tasks/:id/dispatch` selects the first configured provider in the order Gemini → Claude → OpenAI, claims a durable run, persists `dispatching`, invokes the provider adapter and stores the response as an immutable output. The normalized request is fingerprinted; raw provider payload and credentials are not stored. Task-level preferred provider/role constraints are enforced.
 
 - New claim: `201`; same key and same fingerprint: existing claim with `200`.
 - Same key with a different fingerprint: `409 run_key_conflict`.
 - Different key while a non-terminal run exists: `409 active_run_exists`.
-- Provider network dispatch is still disabled. A claimed run is not evidence that Claude or Gemini received work.
+- A provider key is read only from a Worker secret binding. `/v1/providers` reveals only a configured boolean and default model, never key values. A configured key is not proof of validity; the first real dispatch is the credential check.
+- Successful provider responses enter `review`; they are not marked completed. Independent acceptance review and explicit completion remain future work.
+- 4xx provider rejection is recorded as definite failure. 5xx, timeout, connection loss or malformed/empty response is `outcome_unknown`; automatic retry is blocked.
+- Provider output is stored in immutable `task_run_outputs` via migration `0004_task_run_outputs.sql` and can be retrieved by the authenticated owner.
 
 ## Purpose
 
@@ -28,13 +31,13 @@ Cloudflare D1 migration: `migrations/0002_task_runs.sql`.
 
 ## Required dispatch protocol
 
-1. Authenticate the trusted orchestrator/runner, not the Android client.
+1. Authenticate the owner for the dispatch request and use the separate runner secret internally for lifecycle mutations. The mobile client never receives the runner credential.
 2. Validate task ownership, provider allowlist, role, policy and approval requirements.
 3. Calculate a stable request fingerprint from the normalized provider, role, model and payload. Never store credentials or raw secret values in it.
 4. In one D1 transaction/batch, atomically insert a `claimed` row using the caller's stable `run_key` and append its first event. The `(task_id, run_key)` constraint deduplicates the same logical request; the one-active-run partial index rejects different keys racing for the same task. If the key already exists, return the existing run only when its normalized request fingerprint matches; otherwise return a conflict. Neither case may dispatch again.
 5. Persist `dispatch_started` before making the outbound provider request.
 6. On a definite provider rejection that proves no work was accepted, record `failed` with a sanitized reason. A retry must be explicitly authorized and use a new run key.
-7. On a provider response, persist its provider request ID and `accepted` state before polling or doing more work.
+7. On a provider response, persist its provider request ID when available, or record explicit `responseReceived` evidence when the API does not expose an ID. Never fabricate a provider request ID.
 8. On timeout, connection loss, malformed response or process crash after dispatch may have begun, persist `outcome_unknown`. Do not automatically send the request again.
 9. Reconcile an unknown outcome using provider request lookup/webhook or a human decision. If it cannot be reconciled, keep it blocked; do not assume failure.
 10. Mark `completed` only after independent acceptance checks and evidence are recorded.
@@ -53,7 +56,7 @@ Cloudflare D1 migration: `migrations/0002_task_runs.sql`.
 - Provider credentials are retrieved by the trusted worker from secret bindings at dispatch time. Never store them in D1, task payloads, events, artifacts, logs or Git.
 - Store only sanitized provider error codes/messages; do not persist raw response headers or exception text.
 - Android users can read only their own task/run history. Only a trusted runner can claim or update runs.
-- No endpoint in this change performs a provider network request. Provider dispatch remains disabled until the protocol has integration tests and a separately reviewed adapter.
+- The owner dispatch endpoint performs one provider network request only after the durable claim and `dispatching` event are committed. Provider keys are Worker secrets. No provider tool execution, repository write, deployment or external action is granted to the model response.
 
 ## Verification boundary
 
