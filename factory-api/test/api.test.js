@@ -167,22 +167,15 @@ test("provider run route rejects the mobile owner token", async () => {
   assert.equal((await response.json()).error.code, "unauthorized_runner");
 });
 
-test("provider run route accepts only runner authentication but keeps dispatch disabled", async () => {
-  const response = await worker.fetch(
-    new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/runs", {
-      method: "POST",
-      headers: { Origin: allowedOrigin, Authorization: "Bearer runner-secret-value-0123456789abcdef0123456789", "Content-Type": "application/json" },
-      body: JSON.stringify({ runKey: "runner-run-key-001", provider: "claude", role: "implementer" })
-    }),
-    {
-      DB: {},
-      API_TOKEN_SHA256: createHash("sha256").update("0123456789abcdef0123456789abcdef").digest("hex"),
-      FACTORY_RUNNER_TOKEN: "runner-secret-value-0123456789abcdef0123456789",
-      CORS_ORIGIN: allowedOrigin
-    }
-  );
-  assert.equal(response.status, 503);
-  assert.equal((await response.json()).error.code, "provider_not_configured");
+test("provider run route accepts runner authentication and creates a durable claim", async () => {
+  const store = providerRunDb();
+  const response = await worker.fetch(providerRunRequest(store.taskId, runnerToken, validRunBody), {
+    ...store, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin
+  });
+  assert.equal(response.status, 201);
+  assert.equal((await response.json()).status, "claimed");
+  assert.equal(store.runs.size, 1);
+  assert.equal(store.events.length, 1);
 });
 
 
