@@ -229,7 +229,7 @@ internal object FactoryApiClient {
                 }
                 TaskProgressSnapshot(
                     progressPercent = progress,
-                    isRunning = status in setOf("queued", "accepted", "planning", "running", "review"),
+                    isRunning = status in setOf("queued", "accepted", "planning", "running"),
                     status = status
                 )
             } finally {
