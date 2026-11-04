@@ -1,6 +1,6 @@
 # Provider run lifecycle transition contract
 
-Status: design contract; no lifecycle mutation endpoint is enabled by this document.
+Status: partial implementation on the feature branch; limited runner-only transition endpoint exists. Completion, cancellation, reconciliation and retry remain disabled.
 
 ## Security boundary
 
@@ -51,4 +51,4 @@ Cloudflare D1 `batch()` is the atomic multi-statement primitive. Use a condition
 
 ## Current implementation boundary
 
-The existing endpoint `POST /v1/tasks/:id/runs` creates a durable claim only. The legacy task-level event endpoint cannot mark a task completed. This contract does not enable provider dispatch, run mutation, reconciliation, cancellation, or completion.
+The endpoint `POST /v1/tasks/:id/runs` creates a durable claim only. The runner-only endpoint `POST /v1/runs/:runId/transitions` implements only the enabled transitions in the table above (excluding completion, cancellation, and reconciliation). The legacy task-level event endpoint cannot mark a task completed. No provider network dispatch is enabled. Unit tests currently use a D1 test double; real local-D1 concurrency and rollback verification remain a release gate.
