@@ -29,7 +29,7 @@ internal class TaskStorage(context: Context) {
                     val status = runCatching { TaskStatus.valueOf(statusName) }.getOrNull()
                     if (id > 0L && title.isNotBlank() && status != null) {
                         val progress = if (item.has("progressPercent") && !item.isNull("progressPercent")) item.optInt("progressPercent").coerceIn(0, 100) else null
-                        add(BoardTask(id, title, details, status, progressPercent = progress, isRunning = false, remoteTaskId = item.optString("remoteTaskId").takeIf { it.isNotBlank() && it != "null" }, remoteRunId = item.optString("remoteRunId").takeIf { it.isNotBlank() && it != "null" }, agentOutput = item.optString("agentOutput").takeIf { it.isNotBlank() }))
+                        add(BoardTask(id, title, details, status, progressPercent = progress, isRunning = false, remoteTaskId = item.optString("remoteTaskId").takeIf { it.isNotBlank() && it != "null" }, remoteRunId = item.optString("remoteRunId").takeIf { it.isNotBlank() && it != "null" }, agentOutput = item.optString("agentOutput").takeIf { it.isNotBlank() }, dispatchAttempt = item.optInt("dispatchAttempt", 0).coerceAtLeast(0)))
                     }
                 }
             }
@@ -52,6 +52,7 @@ internal class TaskStorage(context: Context) {
                     .put("remoteTaskId", task.remoteTaskId)
                     .put("remoteRunId", task.remoteRunId)
                     .put("agentOutput", task.agentOutput)
+                    .put("dispatchAttempt", task.dispatchAttempt)
             )
         }
         preferences.edit().putString(KEY_TASKS, array.toString()).apply()
