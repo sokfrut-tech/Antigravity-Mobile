@@ -1,3 +1,5 @@
+import { transitionProviderRun } from "./run-lifecycle.js";
+
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
@@ -383,6 +385,11 @@ export default {
     if (runnerEventMatch && request.method === "POST") {
       if (!env.DB) return respond(error("service_unavailable", "D1 database binding is missing.", 503));
       return respond(await recordRunnerEvent(request, runnerEventMatch[1], env));
+    }
+
+    const runTransitionMatch = /^\/v1\/runs\/([0-9a-f-]{36})\/transitions$/.exec(path);
+    if (runTransitionMatch && request.method === "POST") {
+      return respond(await transitionProviderRun(request, runTransitionMatch[1], env));
     }
 
     const runnerRunMatch = /^\/v1\/tasks\/([0-9a-f-]{36})\/runs$/.exec(path);
