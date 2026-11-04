@@ -126,6 +126,22 @@ test("same run key replay in claimed state returns the existing run without dupl
     .bind(replayTaskId).first();
   assert.equal(runs.count, 1);
   assert.equal(events.count, 1);
+
+  const changedBody = {
+    ...body,
+    payload: { prompt: "changed payload", options: { temperature: 0 } }
+  };
+  const changedReplay = await worker.fetch(new Request(`https://factory.test/v1/tasks/${replayTaskId}/runs`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Origin: "https://mobile.example.test",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(changedBody)
+  }), env);
+  assert.equal(changedReplay.status, 409);
+  assert.equal((await changedReplay.json()).error.code, "run_key_conflict");
 });
 
 test("D1 batch compare-and-set permits only one concurrent transition and event", async () => {
@@ -168,4 +184,79 @@ test("D1 migration rejects cross-task events and event updates", async () => {
   await assert.rejects(DB.prepare("DELETE FROM task_run_events WHERE id='event-claimed'").run());
   const retained = await DB.prepare("SELECT COUNT(*) AS count FROM task_run_events WHERE id='event-claimed'").first();
   assert.equal(retained.count,1);
+});
+
+
+test("ambiguous timeout remains outcome_unknown and cannot be retried with a new run key", async () => {
+  const start = await transitionProviderRun(request({
+    expectedStatus: "claimed", nextStatus: "dispatching", summary: "Dispatch started"
+  }), runId, { DB, FACTORY_RUNNER_TOKEN: token });
+  assert.equal(start.status, 201);
+
+  const ambiguous = await transitionProviderRun(request({
+    expectedStatus: "dispatching",
+    nextStatus: "outcome_unknown",
+    outcomeKind: "timeout",
+    summary: "Transport timed out; provider outcome is unknown"
+  }), runId, { DB, FACTORY_RUNNER_TOKEN: token });
+  assert.equal(ambiguous.status, 201);
+  assert.equal(await status(), "outcome_unknown");
+
+  const events = await DB.prepare(
+    "SELECT type,data_json FROM task_run_events WHERE run_id=? ORDER BY sequence"
+  ).bind(runId).all();
+  assert.deepEqual((events.results || []).map(event => event.type),
+    ["claimed", "dispatch_started", "outcome_unknown"]);
+  assert.equal(JSON.parse(events.results[2].data_json).outcomeKind, "timeout");
+
+  const retryTask = "00000000-0000-4000-8000-000000000004";
+  await DB.prepare(`INSERT INTO tasks
+    (id,user_id,title,brief,project_id,priority,status,correlation_id,
+     acceptance_criteria_json,created_at,updated_at)
+    VALUES(?,?,'Unknown task','No blind retry','factory','normal','new',
+           'corr-unknown','[]',?,?)`)
+    .bind(retryTask,"owner",timestamp,timestamp).run();
+  const claim = key => new Request(`https://factory.test/v1/tasks/${retryTask}/runs`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Origin: "https://mobile.example.test",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      runKey: key, provider: "claude", role: "implementer", model: "claude-sonnet",
+      payload: { prompt: "same logical operation" }
+    })
+  });
+  const env = { DB, FACTORY_RUNNER_TOKEN: token, CORS_ORIGIN: "https://mobile.example.test" };
+  const first = await worker.fetch(claim("unknown-run-key"), env);
+  assert.equal(first.status, 201);
+  const firstBody = await first.json();
+  await transitionProviderRun(new Request(`https://factory.test/v1/runs/${firstBody.runId}/transitions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      expectedStatus: "claimed", nextStatus: "dispatching", summary: "Dispatch started"
+    })
+  }), firstBody.runId, { DB, FACTORY_RUNNER_TOKEN: token });
+  const markUnknown = await transitionProviderRun(new Request(`https://factory.test/v1/runs/${firstBody.runId}/transitions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      expectedStatus: "dispatching", nextStatus: "outcome_unknown",
+      outcomeKind: "connection_lost", summary: "Connection lost"
+    })
+  }), firstBody.runId, { DB, FACTORY_RUNNER_TOKEN: token });
+  assert.equal(markUnknown.status, 201);
+
+  const replay = await worker.fetch(claim("unknown-run-key"), env);
+  assert.equal(replay.status, 200);
+  const replayBody = await replay.json();
+  assert.equal(replayBody.runId, firstBody.runId);
+  assert.equal(replayBody.status, "outcome_unknown");
+  assert.equal(replayBody.replayed, true);
+
+  const blindRetry = await worker.fetch(claim("new-blind-retry-key"), env);
+  assert.equal(blindRetry.status, 409);
+  assert.equal((await blindRetry.json()).error.code, "active_run_exists");
 });
