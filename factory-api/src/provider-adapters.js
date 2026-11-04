@@ -1,11 +1,11 @@
 const PROVIDERS = {
-  claude: {
-    secret: "ANTHROPIC_API_KEY",
-    defaultModel: "claude-sonnet-5-5"
-  },
   gemini: {
     secret: "GEMINI_API_KEY",
     defaultModel: "gemini-3.8-flash"
+  },
+  claude: {
+    secret: "ANTHROPIC_API_KEY",
+    defaultModel: "claude-sonnet-5-5"
   },
   openai: {
     secret: "OPENAI_API_KEY",
