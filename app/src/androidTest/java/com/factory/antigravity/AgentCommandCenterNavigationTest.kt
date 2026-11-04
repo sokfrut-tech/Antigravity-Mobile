@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -20,6 +21,6 @@ class AgentCommandCenterNavigationTest {
         composeRule.onNodeWithText("Специалисты ИИ").assertIsDisplayed()
         composeRule.onNodeWithText("Worker не подключён").assertIsDisplayed()
         composeRule.onNodeWithText("Claude").assertIsDisplayed()
-        composeRule.onNodeWithText("Связь между агентами").assertIsDisplayed()
+        composeRule.onNodeWithText("Связь между агентами").performScrollTo().assertIsDisplayed()
     }
 }
