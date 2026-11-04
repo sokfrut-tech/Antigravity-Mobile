@@ -1,6 +1,15 @@
 # Durable provider run ledger
 
-Status: schema contract / not deployed, 2026-11-04.
+Status: claim endpoint implemented on the feature branch; not deployed, 2026-11-04.
+
+## Implemented claim endpoint
+
+`POST /v1/tasks/:id/runs` authenticates only the trusted runner and creates a durable claim plus its first append-only event in one D1 batch. It accepts an allowlisted provider (`claude` or `gemini`), role, model, run key and object payload. The normalized request is fingerprinted; raw provider payload and credentials are not stored. Task-level preferred provider/role constraints are enforced.
+
+- New claim: `201`; same key and same fingerprint: existing claim with `200`.
+- Same key with a different fingerprint: `409 run_key_conflict`.
+- Different key while a non-terminal run exists: `409 active_run_exists`.
+- Provider network dispatch is still disabled. A claimed run is not evidence that Claude or Gemini received work.
 
 ## Purpose
 
