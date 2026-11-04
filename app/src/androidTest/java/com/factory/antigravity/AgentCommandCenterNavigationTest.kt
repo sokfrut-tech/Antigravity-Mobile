@@ -19,7 +19,7 @@ class AgentCommandCenterNavigationTest {
         composeRule.onNodeWithText("Агенты").performClick()
         composeRule.onNodeWithText("Специалисты ИИ").assertIsDisplayed()
         composeRule.onNodeWithText("Worker не подключён").assertIsDisplayed()
-        composeRule.onNodeWithText("Провайдер не подключён").assertIsDisplayed()
+        composeRule.onNodeWithText("Claude").assertIsDisplayed()
         composeRule.onNodeWithText("Связь между агентами").assertIsDisplayed()
     }
 }
