@@ -55,9 +55,22 @@ beforeEach(async () => {
   await mf.ready;
   DB = await mf.getD1Database("DB");
   for (const name of ["0001_initial.sql", "0002_task_runs.sql", "0003_task_run_event_guards.sql"]) {
-    const sql = await readFile(join(migrationsDir, name), "utf8");
-    // D1 manages foreign-key enforcement; SQLite PRAGMA is not accepted by D1 exec.
-    await DB.exec(sql.replace("PRAGMA foreign_keys = ON;", ""));
+    const sql = (await readFile(join(migrationsDir, name), "utf8"))
+      .replace("PRAGMA foreign_keys = ON;", "");
+    // Miniflare D1 exec accepts one statement at a time. Keep trigger bodies intact.
+    let statement = "";
+    let inTrigger = false;
+    for (const line of sql.split(/\\r?\\n/)) {
+      const trimmed = line.trim();
+      if (!statement && /^CREATE TRIGGER\\b/i.test(trimmed)) inTrigger = true;
+      statement += line + "\\n";
+      if (inTrigger ? /^END;$/i.test(trimmed) : trimmed.endsWith(";")) {
+        if (statement.trim()) await DB.prepare(statement).run();
+        statement = "";
+        inTrigger = false;
+      }
+    }
+    if (statement.trim()) await DB.prepare(statement).run();
   }
   await seed();
 });
