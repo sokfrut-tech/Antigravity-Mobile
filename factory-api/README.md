@@ -24,8 +24,8 @@ Migration `0002_task_runs.sql` adds a persistent run registry with unique `(task
 - `GET /v1/tasks` — authenticated task list.
 - `POST /v1/tasks` — authenticated task creation; requires `Idempotency-Key`.
 - `GET /v1/tasks/{uuid}` — task detail.
-- `GET /v1/tasks/{uuid}/events` — ordered event history for the mobile owner client.\n- `POST /v1/tasks/{uuid}/events` — append a validated progress/status event from a trusted runner only; requires the separate `FACTORY_RUNNER_TOKEN` secret.
-- `POST /v1/tasks/{uuid}/runs` — intentionally returns `503 provider_not_configured` until a real provider adapter exists.
+- `GET /v1/tasks/{uuid}/events` — ordered event history for the mobile owner client.\n- `POST /v1/tasks/{uuid}/events` — append non-terminal progress/status events from a trusted runner only; it cannot declare a task completed. Requires the separate `FACTORY_RUNNER_TOKEN` secret.
+- `POST /v1/tasks/{uuid}/runs` — creates an authenticated durable claim only; it does not contact Claude/Gemini. Requires `FACTORY_RUNNER_TOKEN`.
 
 ## Deploy prerequisites
 
