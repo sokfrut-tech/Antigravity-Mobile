@@ -26,6 +26,7 @@ jobs:
         working-directory: factory-api
     steps:
       - name: Validate selected source branch
+        working-directory: .
         env:
           SOURCE_REF: ${{ inputs.source_ref }}
         run: |
