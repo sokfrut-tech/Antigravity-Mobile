@@ -122,6 +122,32 @@ test("runner event rejects out-of-range progress", async () => {
 });
 
 
+test("legacy task event endpoint cannot declare a task completed", async () => {
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/events", {
+      method: "POST",
+      headers: { Origin: allowedOrigin, Authorization: `Bearer ${runnerToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "completed", summary: "Finished", progressPercent: 100, status: "completed" })
+    }),
+    { DB: {}, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin }
+  );
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error.code, "invalid_event_type");
+});
+
+test("legacy task event endpoint cannot set completed status through status events", async () => {
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/tasks/00000000-0000-4000-8000-000000000000/events", {
+      method: "POST",
+      headers: { Origin: allowedOrigin, Authorization: `Bearer ${runnerToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "status", summary: "Finished", status: "completed" })
+    }),
+    { DB: {}, FACTORY_RUNNER_TOKEN: runnerToken, CORS_ORIGIN: allowedOrigin }
+  );
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error.code, "invalid_status");
+});
+
 test("trusted runner can append a bounded progress event", async () => {
   let batches = 0;
   const db = {
