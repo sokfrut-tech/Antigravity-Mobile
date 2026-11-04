@@ -59,7 +59,7 @@ test("OpenAI adapter uses Responses API and extracts output_text", async () => {
   let captured;
   const result = await executeProvider({
     provider: "openai",
-    model: "gpt-6",
+    model: "gpt-6.1-sol",
     prompt: "Check this patch",
     env: { OPENAI_API_KEY: "openai-secret" },
     fetchImpl: async (url, init) => {
