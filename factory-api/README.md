@@ -47,12 +47,17 @@ Configure these in **Antigravity-Mobile → Settings → Secrets and variables �
 - `ANTHROPIC_API_KEY` — optional Claude API key.
 - `GEMINI_API_KEY` — optional Gemini API key.
 - `OPENAI_API_KEY` — optional OpenAI API key.
-- `ALLOW_LIVE_PROVIDERS` — non-secret Worker variable; must be exactly `true` to permit live calls. Defaults to `false`. Each mobile task still requires a separate explicit cost acknowledgement before dispatch.
 
 Add provider keys as GitHub repository secrets. The manual deployment workflow copies any configured optional provider key into Cloudflare Worker secrets. If a GitHub secret is absent, the workflow leaves any existing Cloudflare Worker secret unchanged; remove a previously configured key explicitly with `wrangler secret delete KEY_NAME` only after owner approval. Do not paste keys into chat, Git, APK settings or logs.
 
 **Repository variable**
 - `FACTORY_API_CORS_ORIGIN` — one exact HTTPS origin; no wildcard.
+
+**Global provider safety switch**
+- `ALLOW_LIVE_PROVIDERS` is a non-secret Worker variable defined in `wrangler.toml`; it defaults to `false`.
+- The Worker refuses all provider dispatch unless the value is exactly `true`, even if provider keys exist.
+- Enabling it requires an explicit owner decision and a reviewed deployment. Keep it `false` until live provider spending is approved.
+- After global enablement, the Android app still asks for a separate cost acknowledgement before each task dispatch.
 
 Then open **Actions → Deploy Factory API → Run workflow**. The workflow runs tests, substitutes the D1 ID and CORS origin, applies migrations, sets the token digest as a Worker secret and deploys.
 
