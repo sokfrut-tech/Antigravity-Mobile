@@ -55,7 +55,9 @@ beforeEach(async () => {
   await mf.ready;
   DB = await mf.getD1Database("DB");
   for (const name of ["0001_initial.sql", "0002_task_runs.sql", "0003_task_run_event_guards.sql"]) {
-    await DB.exec(await readFile(join(migrationsDir, name), "utf8"));
+    const sql = await readFile(join(migrationsDir, name), "utf8");
+    // D1 manages foreign-key enforcement; SQLite PRAGMA is not accepted by D1 exec.
+    await DB.exec(sql.replace(/^\\s*PRAGMA foreign_keys = ON;\\s*/i, ""));
   }
   await seed();
 });
