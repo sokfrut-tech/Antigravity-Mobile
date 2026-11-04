@@ -139,3 +139,14 @@ A release is not ready until:
 - remaining device-test limitations are disclosed.
 
 No merge to protected main, production deployment, remote D1 migration, secret changes or Google Play publishing without the owner's explicit approval.
+
+
+## Live implementation evidence — 2026-11-04 17:30 UTC
+
+- PR #17: https://github.com/sokfrut-tech/Antigravity-Mobile/pull/17
+- First artifact run `41877110598` produced an APK, but the downloaded emulator report showed **2 tests, 2 failures, 0 errors, 0 skipped**. The failures exposed an outdated test entry point/title and an off-screen assertion. This run is failed evidence, not a passing release check.
+- The APK ZIP contained `app-debug.apk` (10,181,006 bytes); SHA-256: `d90ac5d1233a84283a72bfc5b697a93c0d1396fece5f7ee55d585cb931baf5ba`. It is a debug artifact only and must not be distributed as a release.
+- Corrective changes were committed: app title aligned, legacy test now opens Tasks before API settings, agent status assertion scrolls into view, and inert placeholder cards are no longer clickable.
+- Latest observed PR #17 head: `7656ef494fdaa195b4b3e98ca3f1c943b84a008e`.
+- Fresh workflow run `41877993846` is queued. Await its actual job conclusion before treating the fixes as verified.
+- No substantive Claude or Gemini report has been verified. Their optional review tasks are in the Factory inbox. ChatGPT continues direct implementation and will not wait for external agent availability.
