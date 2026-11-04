@@ -14,19 +14,28 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import kotlinx.coroutines.launch
 
 internal data class BoardTask(
     val id: Long,
     val title: String,
     val details: String = "",
-    val status: TaskStatus = TaskStatus.TODO
+    val status: TaskStatus = TaskStatus.TODO,
+    val progressPercent: Int? = null,
+    val isRunning: Boolean = false
 )
 
 internal enum class TaskStatus(val label: String) {
@@ -276,7 +285,18 @@ private fun TaskCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(task.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                }
+                if (task.isRunning || task.progressPercent != null || task.status == TaskStatus.DONE) {
+                    Spacer(Modifier.width(10.dp))
+                    TaskProgressRing(
+                        progress = if (task.status == TaskStatus.DONE) 100 else task.progressPercent ?: 0,
+                        isRunning = task.isRunning && task.status != TaskStatus.DONE
+                    )
+                }
+            }
             if (task.details.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(task.details, style = MaterialTheme.typography.bodyMedium,
@@ -302,6 +322,48 @@ private fun TaskCard(
                     label = { Text("Удалить", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, maxLines = 1) })
             }
         }
+    }
+}
+
+@Composable
+private fun TaskProgressRing(progress: Int, isRunning: Boolean) {
+    val safeProgress = progress.coerceIn(0, 100)
+    val transition = rememberInfiniteTransition(label = "task-progress")
+    val rotation = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "task-progress-rotation"
+    )
+    Box(
+        modifier = Modifier.size(42.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isRunning) {
+            CircularProgressIndicator(
+                modifier = Modifier.fillMaxSize().graphicsLayer { rotationZ = rotation.value },
+                strokeWidth = 3.dp,
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+            )
+        } else {
+            CircularProgressIndicator(
+                progress = { safeProgress / 100f },
+                modifier = Modifier.fillMaxSize(),
+                strokeWidth = 3.dp,
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+            )
+        }
+        Text(
+            "$safeProgress%",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            fontSize = 9.sp
+        )
     }
 }
 
