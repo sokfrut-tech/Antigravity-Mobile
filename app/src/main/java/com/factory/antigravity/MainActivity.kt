@@ -71,7 +71,7 @@ private val AntigravityDarkColors = darkColorScheme(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { AntigravityApp() }
+        setContent { AgentCommandCenterShell() }
     }
 }
 
