@@ -12,7 +12,9 @@ import java.security.MessageDigest
 
 internal data class TaskProgressSnapshot(val progressPercent: Int?, val isRunning: Boolean, val status: String?)
 
-internal data class TaskSubmission(val id: String)\ninternal data class ProviderAvailability(val id: String, val configured: Boolean, val defaultModel: String)\ninternal data class TaskDispatchResult(val runId: String, val provider: String, val model: String, val status: String, val output: String)
+internal data class TaskSubmission(val id: String)
+internal data class ProviderAvailability(val id: String, val configured: Boolean, val defaultModel: String)
+internal data class TaskDispatchResult(val runId: String, val provider: String, val model: String, val status: String, val output: String)
 
 internal object FactoryApiClient {
     suspend fun health(baseUrl: String, token: String?): String = withContext(Dispatchers.IO) {
