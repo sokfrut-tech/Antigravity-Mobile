@@ -4,7 +4,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS task_runs (
   id TEXT PRIMARY KEY,
-  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE RESTRICT,
   user_id TEXT NOT NULL,
   run_key TEXT NOT NULL CHECK(length(run_key) BETWEEN 8 AND 128),
   provider TEXT NOT NULL CHECK(length(provider) BETWEEN 1 AND 80),
@@ -41,8 +41,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_task_runs_provider_request
 
 CREATE TABLE IF NOT EXISTS task_run_events (
   id TEXT PRIMARY KEY,
-  run_id TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
-  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  run_id TEXT NOT NULL REFERENCES task_runs(id) ON DELETE RESTRICT,
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE RESTRICT,
   sequence INTEGER NOT NULL CHECK(sequence > 0),
   type TEXT NOT NULL CHECK(type IN (
     'claimed','dispatch_started','provider_accepted','provider_progress',
