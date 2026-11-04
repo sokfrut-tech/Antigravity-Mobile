@@ -10,7 +10,11 @@ import java.net.URI
 import java.net.URL
 import java.security.MessageDigest
 
-internal data class TaskProgressSnapshot(val progressPercent: Int?, val isRunning: Boolean, val status: String?)\n\ninternal data class TaskSubmission(val id: String)\n\ninternal object FactoryApiClient {
+internal data class TaskProgressSnapshot(val progressPercent: Int?, val isRunning: Boolean, val status: String?)
+
+internal data class TaskSubmission(val id: String)
+
+internal object FactoryApiClient {
     suspend fun health(baseUrl: String, token: String?): String = withContext(Dispatchers.IO) {
         val normalized = baseUrl.trim().trimEnd('/')
         val uri = runCatching { URI(normalized) }.getOrNull()
@@ -99,7 +103,7 @@ internal data class TaskProgressSnapshot(val progressPercent: Int?, val isRunnin
     }
 
 
-    suspend fun taskProgress(baseUrl: String, token: String, remoteTaskId: String): TaskProgressSnapshot =
+    internal suspend fun taskProgress(baseUrl: String, token: String, remoteTaskId: String): TaskProgressSnapshot =
         withContext(Dispatchers.IO) {
             val normalized = baseUrl.trim().trimEnd('/')
             val uri = runCatching { URI(normalized) }.getOrNull()
