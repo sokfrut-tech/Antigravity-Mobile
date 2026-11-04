@@ -132,7 +132,7 @@ export async function transitionProviderRun(request, runId, env) {
          SET status=?, updated_at=?,
              provider_request_id=CASE WHEN ? IS NOT NULL THEN ? ELSE provider_request_id END,
              dispatched_at=CASE WHEN ?='dispatching' AND dispatched_at IS NULL THEN ? ELSE dispatched_at END,
-             finished_at=CASE WHEN ? IN ('failed','outcome_unknown') THEN ? ELSE finished_at END,
+             finished_at=CASE WHEN ?='failed' THEN ? ELSE finished_at END,
              outcome_note=CASE WHEN ? IN ('failed','outcome_unknown') THEN ? ELSE outcome_note END
          WHERE id=? AND status=?`
       ).bind(
