@@ -32,7 +32,7 @@ class MainActivityUiTest {
 
         composeRule.onNodeWithText("Проверка на Android-эмуляторе").assertIsDisplayed()
         composeRule.onAllNodesWithText("← Назад")[0].assertIsDisplayed()
-        composeRule.onAllNodesWithText("⚡ Фабрика")[0].assertIsDisplayed()
+        composeRule.onAllNodesWithText("⚡ Запустить агента")[0].assertIsDisplayed()
         composeRule.onAllNodesWithText("Удалить")[0].assertIsDisplayed()
         composeRule.onNodeWithText("Новые (2)").assertIsDisplayed()
         composeRule.onNodeWithText("В работе (1)").performClick()
