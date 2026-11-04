@@ -302,7 +302,7 @@ export default {
       return respond(await recordRunnerEvent(request, runnerEventMatch[1], env));
     }
 
-    const runnerRunMatch = /^\\/v1\\/tasks\\/([0-9a-f-]{36})\\/runs$/.exec(path);
+    const runnerRunMatch = /^\/v1\/tasks\/([0-9a-f-]{36})\/runs$/.exec(path);
     if (runnerRunMatch && request.method === "POST") {
       const expected = env.FACTORY_RUNNER_TOKEN;
       const supplied = (request.headers.get("Authorization") || "").replace(/^Bearer /, "");
