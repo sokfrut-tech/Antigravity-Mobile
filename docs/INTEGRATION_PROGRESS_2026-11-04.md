@@ -34,9 +34,9 @@
 - Existing SQLite concurrency/rollback checks apply all migration files.
 
 ## Verification status
-- Exact integrated PR #18 head after mobile retry integration: `d545549fc45b7a6d06d601b44c23dc58802f279d`.
+- Exact integrated PR #18 head: `c4a6646a20c5446c57dbe96e4dc00a91bb5cba4d`.
 - PR mergeability: true after recalculation; base is current main, no behind commits.
-- Fresh PR checks for this integrated head: NOT YET OBSERVED. The earlier standalone main-branch Factory API run does not cover the integration branch. Do not treat historical PR #14/#15 runs or the separate main-only provider-adapter unit run as verification of this integrated branch.
+- Fresh PR checks for this integrated head: NOT TRIGGERED / NOT OBSERVED. PR #18 was updated and reopened, but GitHub Actions did not create PR-triggered runs for this branch. Do not treat main-only checks as integrated verification. The earlier standalone main-branch Factory API run does not cover the integration branch. Do not treat historical PR #14/#15 runs or the separate main-only provider-adapter unit run as verification of this integrated branch.
 - Physical device test: NOT TESTED.
 - Live provider credentials/requests: NOT TESTED.
 - Cloudflare remote D1 migration and Worker deployment: NOT PERFORMED.
