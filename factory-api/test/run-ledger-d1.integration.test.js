@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -259,4 +260,80 @@ test("ambiguous timeout remains outcome_unknown and cannot be retried with a new
   const blindRetry = await worker.fetch(claim("new-blind-retry-key"), env);
   assert.equal(blindRetry.status, 409);
   assert.equal((await blindRetry.json()).error.code, "active_run_exists");
+});
+
+test("owner dispatches to a configured provider once and retrieves the immutable result", async () => {
+  const dispatchTaskId = "00000000-0000-4000-8000-000000000005";
+  await DB.prepare(`INSERT INTO tasks
+    (id,user_id,title,brief,project_id,priority,status,correlation_id,
+     acceptance_criteria_json,created_at,updated_at)
+    VALUES(?,?,'Dispatch integration','Return a concise implementation review','factory',
+           'normal','new','corr-dispatch','["Identify risks","Suggest tests"]',?,?)`)
+    .bind(dispatchTaskId,"owner",timestamp,timestamp).run();
+
+  const ownerToken = "owner-token-value-0123456789abcdef0123456789";
+  const ownerDigest = createHash("sha256").update(ownerToken).digest("hex");
+  const originalFetch = globalThis.fetch;
+  let providerCalls = 0;
+  globalThis.fetch = async (url, init) => {
+    providerCalls += 1;
+    assert.match(String(url), /generativelanguage\.googleapis\.com/);
+    assert.equal(init.headers["x-goog-api-key"], "test-server-secret");
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: "Provider result: review complete." }] } }]
+    }), { status: 200, headers: { "x-goog-request-id": "gemini-request-555" } });
+  };
+  const env = {
+    DB,
+    API_TOKEN_SHA256: ownerDigest,
+    FACTORY_RUNNER_TOKEN: token,
+    GEMINI_API_KEY: "test-server-secret",
+    CORS_ORIGIN: "https://mobile.example.test"
+  };
+  const makeDispatch = () => new Request(`https://factory.test/v1/tasks/${dispatchTaskId}/dispatch`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${ownerToken}`,
+      Origin: "https://mobile.example.test",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ runKey: "dispatch-key-001", provider: "auto", role: "implementer" })
+  });
+
+  try {
+    const response = await worker.fetch(makeDispatch(), env);
+    assert.equal(response.status, 201);
+    const result = await response.json();
+    assert.equal(result.status, "review");
+    assert.equal(result.provider, "gemini");
+    assert.equal(result.providerRequestId, "gemini-request-555");
+    assert.equal(result.output, "Provider result: review complete.");
+    assert.equal(providerCalls, 1);
+
+    const saved = await DB.prepare("SELECT output_text FROM task_run_outputs WHERE run_id=?")
+      .bind(result.runId).first();
+    assert.equal(saved.output_text, result.output);
+    const run = await DB.prepare("SELECT status FROM task_runs WHERE id=?").bind(result.runId).first();
+    assert.equal(run.status, "review");
+    const task = await DB.prepare("SELECT status FROM tasks WHERE id=?").bind(dispatchTaskId).first();
+    assert.equal(task.status, "review");
+
+    const duplicate = await worker.fetch(makeDispatch(), env);
+    assert.equal(duplicate.status, 409);
+    assert.equal(providerCalls, 1);
+
+    const outputResponse = await worker.fetch(new Request(
+      `https://factory.test/v1/tasks/${dispatchTaskId}/runs/${result.runId}/output`,
+      { headers: { Authorization: `Bearer ${ownerToken}`, Origin: "https://mobile.example.test" } }
+    ), env);
+    assert.equal(outputResponse.status, 200);
+    assert.equal((await outputResponse.json()).output, result.output);
+
+    await assert.rejects(DB.prepare("UPDATE task_run_outputs SET output_text='rewritten' WHERE run_id=?")
+      .bind(result.runId).run());
+    await assert.rejects(DB.prepare("DELETE FROM task_run_outputs WHERE run_id=?")
+      .bind(result.runId).run());
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
