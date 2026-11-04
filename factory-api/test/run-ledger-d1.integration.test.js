@@ -60,10 +60,11 @@ beforeEach(async () => {
     // Miniflare D1 exec accepts one statement at a time. Keep trigger bodies intact.
     let statement = "";
     let inTrigger = false;
-    for (const line of sql.split(/\\r?\\n/)) {
+    for (const line of sql.split(/\r?\n/)) {
       const trimmed = line.trim();
-      if (!statement && /^CREATE TRIGGER\\b/i.test(trimmed)) inTrigger = true;
-      statement += line + "\\n";
+      if (!statement && /^CREATE TRIGGER\b/i.test(trimmed)) inTrigger = true;
+      statement += line + "
+";
       if (inTrigger ? /^END;$/i.test(trimmed) : trimmed.endsWith(";")) {
         if (statement.trim()) await DB.prepare(statement).run();
         statement = "";
