@@ -38,5 +38,6 @@ class MainActivityUiTest {
         composeRule.onNodeWithText("Собрать первый APK").assertIsDisplayed()
         composeRule.onNodeWithText("Готово (1)").performClick()
         composeRule.onNodeWithText("Проверить рабочий процесс").assertIsDisplayed()
+        composeRule.onNodeWithText("100%").assertIsDisplayed()
     }
 }
