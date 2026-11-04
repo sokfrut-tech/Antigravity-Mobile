@@ -20,7 +20,7 @@ This is the first backend implementation slice for Antigravity Mobile. It provid
 - `GET /v1/tasks` — authenticated task list.
 - `POST /v1/tasks` — authenticated task creation; requires `Idempotency-Key`.
 - `GET /v1/tasks/{uuid}` — task detail.
-- `GET /v1/tasks/{uuid}/events` — ordered event history.
+- `GET /v1/tasks/{uuid}/events` — ordered event history for the mobile owner client.\n- `POST /v1/tasks/{uuid}/events` — append a validated progress/status event from a trusted runner only; requires the separate `FACTORY_RUNNER_TOKEN` secret.
 - `POST /v1/tasks/{uuid}/runs` — intentionally returns `503 provider_not_configured` until a real provider adapter exists.
 
 ## Deploy prerequisites
@@ -33,7 +33,7 @@ Configure these in **Antigravity-Mobile → Settings → Secrets and variables �
 - `CLOUDFLARE_API_TOKEN` — Cloudflare API token with permission to deploy Workers and manage the selected D1 database.
 - `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID.
 - `FACTORY_D1_DATABASE_ID` — UUID of a D1 database named `universal-ai-factory`.
-- `FACTORY_API_TOKEN_SHA256` — SHA-256 hex digest of a random token with at least 32 bytes of entropy. Store the raw token separately in a password manager; never send it in chat or commit it.
+- `FACTORY_API_TOKEN_SHA256` — SHA-256 hex digest of a random token with at least 32 bytes of entropy. Store the raw token separately in a password manager; never send it in chat or commit it.\n- `FACTORY_RUNNER_TOKEN` — a separate high-entropy secret used only by trusted Factory runner workers to append progress events. Never put this token in the Android app or expose it to users.
 
 **Repository variable**
 - `FACTORY_API_CORS_ORIGIN` — one exact HTTPS origin; no wildcard.

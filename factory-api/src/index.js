@@ -198,6 +198,61 @@ async function getTask(id, env, userId) {
   return row ? json(parseTask(row)) : error("not_found", "Task not found.", 404);
 }
 
+
+async function recordRunnerEvent(request, id, env) {
+  const expected = env.FACTORY_RUNNER_TOKEN;
+  const supplied = (request.headers.get("Authorization") || "").replace(/^Bearer /, "");
+  if (!expected || !constantTimeEqual(supplied, expected)) {
+    return error("unauthorized_runner", "A valid factory runner credential is required.", 401);
+  }
+  const parsed = await readJsonBodyLimited(request, 8_192);
+  if (parsed.tooLarge) return error("payload_too_large", "Event body exceeds 8 KB.", 413);
+  if (parsed.invalid || !parsed.body || typeof parsed.body !== "object" || Array.isArray(parsed.body)) {
+    return error("invalid_event", "Event body must be a JSON object.", 400);
+  }
+  const body = parsed.body;
+  const allowedTypes = new Set(["progress", "status", "log", "completed", "failed"]);
+  if (!allowedTypes.has(body.type)) return error("invalid_event_type", "Unsupported runner event type.", 400);
+  if (!validString(body.summary, 1, 500)) return error("invalid_summary", "A short event summary is required.", 400);
+  if (body.progressPercent != null &&
+      (!Number.isInteger(body.progressPercent) || body.progressPercent < 0 || body.progressPercent > 100)) {
+    return error("invalid_progress", "progressPercent must be an integer from 0 to 100.", 400);
+  }
+  const allowedStatuses = new Set(["queued", "accepted", "planning", "running", "review", "needs_approval", "blocked", "partial", "failed", "completed", "cancelled"]);
+  if (body.status != null && !allowedStatuses.has(body.status)) {
+    return error("invalid_status", "Unsupported runner task status.", 400);
+  }
+  if (body.type === "completed" && body.progressPercent != null && body.progressPercent !== 100) {
+    return error("invalid_progress", "Completed tasks must report 100 percent.", 400);
+  }
+  const task = await env.DB.prepare("SELECT id,user_id FROM tasks WHERE id=?").bind(id).first();
+  if (!task) return error("not_found", "Task not found.", 404);
+
+  const now = new Date().toISOString();
+  const eventId = crypto.randomUUID();
+  const data = {
+    ...(body.progressPercent == null ? {} : { progressPercent: body.progressPercent }),
+    ...(body.status == null ? {} : { status: body.status }),
+    ...(validString(body.provider, 1, 80) ? { provider: body.provider } : {}),
+    ...(validString(body.role, 1, 80) ? { role: body.role } : {})
+  };
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO task_events(id,task_id,user_id,sequence,type,timestamp,summary,data_json)
+         SELECT ?,?,?,COALESCE(MAX(sequence),0)+1,?,?,?,?
+         FROM task_events WHERE task_id=? AND user_id=?`
+      ).bind(eventId, id, task.user_id, body.type, now, body.summary.trim(), JSON.stringify(data), id, task.user_id),
+      ...(body.status ? [env.DB.prepare(
+        "UPDATE tasks SET status=?,updated_at=? WHERE id=?"
+      ).bind(body.status, now, id)] : [])
+    ]);
+  } catch {
+    return error("event_write_conflict", "Runner event could not be committed. Retry with a new event request.", 503);
+  }
+  return json({ accepted: true, eventId, taskId: id, timestamp: now }, 201);
+}
+
 async function getEvents(id, url, env, userId) {
   const task = await env.DB.prepare("SELECT id FROM tasks WHERE id=? AND user_id=?").bind(id, userId).first();
   if (!task) return error("not_found", "Task not found.", 404);
@@ -240,6 +295,12 @@ export default {
       return respond(json({ status: healthy ? "ok" : "degraded", apiVersion: "1.0.0" }));
     }
     if (!["GET", "POST"].includes(request.method)) return respond(error("method_not_allowed", "Method not allowed.", 405));
+
+    const runnerEventMatch = /^\/v1\/tasks\/([0-9a-f-]{36})\/events$/.exec(path);
+    if (runnerEventMatch && request.method === "POST") {
+      if (!env.DB) return respond(error("service_unavailable", "D1 database binding is missing.", 503));
+      return respond(await recordRunnerEvent(request, runnerEventMatch[1], env));
+    }
 
     const userId = await authenticate(request, env);
     if (!userId) return respond(error("unauthorized", "A valid bearer token is required.", 401));

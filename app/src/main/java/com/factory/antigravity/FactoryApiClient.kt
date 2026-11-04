@@ -10,6 +10,10 @@ import java.net.URI
 import java.net.URL
 import java.security.MessageDigest
 
+internal data class TaskProgressSnapshot(val progressPercent: Int?, val isRunning: Boolean, val status: String?)
+
+internal data class TaskSubmission(val id: String)
+
 internal object FactoryApiClient {
     suspend fun health(baseUrl: String, token: String?): String = withContext(Dispatchers.IO) {
         val normalized = baseUrl.trim().trimEnd('/')
@@ -48,7 +52,7 @@ internal object FactoryApiClient {
         localTaskId: Long,
         title: String,
         details: String
-    ): String = withContext(Dispatchers.IO) {
+    ): TaskSubmission = withContext(Dispatchers.IO) {
         require(token.isNotBlank()) { "Сначала сохраните bearer token в настройках подключения." }
         val normalized = baseUrl.trim().trimEnd('/')
         val uri = runCatching { URI(normalized) }.getOrNull()
@@ -92,10 +96,55 @@ internal object FactoryApiClient {
             }
             val taskId = JSONObject(responseBody).optString("id")
             if (taskId.isBlank()) throw IOException("Factory API ответил без ID задачи.")
-            "Задача отправлена в Factory. ID: $taskId"
+            TaskSubmission(taskId)
         } finally {
             connection.disconnect()
         }
     }
+
+
+    internal suspend fun taskProgress(baseUrl: String, token: String, remoteTaskId: String): TaskProgressSnapshot =
+        withContext(Dispatchers.IO) {
+            val normalized = baseUrl.trim().trimEnd('/')
+            val uri = runCatching { URI(normalized) }.getOrNull()
+            require(uri != null && uri.scheme == "https" && !uri.host.isNullOrBlank() &&
+                uri.userInfo == null && uri.query == null && uri.fragment == null) {
+                "Нужен корректный HTTPS-адрес Factory API."
+            }
+            val safeId = remoteTaskId.takeIf { it.matches(Regex("[0-9a-fA-F-]{36}")) }
+                ?: throw IOException("Некорректный ID задачи Factory.")
+            val connection = (URL("$normalized/v1/tasks/$safeId/events?limit=100").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8_000
+                readTimeout = 8_000
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+            try {
+                val code = connection.responseCode
+                val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                if (code !in 200..299) throw IOException("Не удалось получить прогресс задачи (HTTP $code).")
+                val events = JSONArray(body)
+                var progress: Int? = null
+                var status: String? = null
+                for (i in 0 until events.length()) {
+                    val event = events.optJSONObject(i) ?: continue
+                    val data = event.optJSONObject("data") ?: JSONObject()
+                    if (data.has("progressPercent")) progress = data.optInt("progressPercent").coerceIn(0, 100)
+                    if (data.has("status")) status = data.optString("status")
+                    when (event.optString("type")) {
+                        "completed" -> { progress = 100; status = "completed" }
+                        "failed" -> status = "failed"
+                    }
+                }
+                TaskProgressSnapshot(
+                    progressPercent = progress,
+                    isRunning = status in setOf("queued", "accepted", "planning", "running", "review"),
+                    status = status
+                )
+            } finally {
+                connection.disconnect()
+            }
+        }
 
 }
