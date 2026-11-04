@@ -9,7 +9,7 @@ const PROVIDERS = {
   },
   openai: {
     secret: "OPENAI_API_KEY",
-    defaultModel: "gpt-6-astra"
+    defaultModel: "gpt-6.1-sol"
   }
 };
 
