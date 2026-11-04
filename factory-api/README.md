@@ -27,7 +27,7 @@ Migration `0002_task_runs.sql` adds a persistent run registry with unique `(task
 - `GET /v1/tasks/{uuid}/events` — ordered event history for the mobile owner client.
 - `POST /v1/tasks/{uuid}/events` — append non-terminal progress/status events from a trusted runner only; it cannot declare a task completed. Requires the separate `FACTORY_RUNNER_TOKEN` secret.
 - `GET /v1/providers` — owner-authenticated provider secret-presence status; never returns secrets.
-- `POST /v1/tasks/{uuid}/dispatch` — owner-authenticated one-shot provider call, automatically selecting the first configured provider (Gemini, Claude, OpenAI).
+- `POST /v1/tasks/{uuid}/dispatch` — owner-authenticated one-shot provider call; requires explicit `costAcknowledged: true` and automatically selects the first configured provider (Gemini, Claude, OpenAI).
 - `GET /v1/tasks/{uuid}/runs/{runUuid}/output` — owner-authenticated retrieval of the immutable provider response.
 - `POST /v1/tasks/{uuid}/runs` — trusted-runner-only durable claim endpoint; does not itself call a provider. Requires `FACTORY_RUNNER_TOKEN`.
 - `POST /v1/runs/{uuid}/transitions` — runner-only compare-and-set transition with an append-only event in one D1 batch. Completion, cancellation, unknown-outcome reconciliation and retry remain disabled. Requires `FACTORY_RUNNER_TOKEN`.
@@ -47,7 +47,7 @@ Configure these in **Antigravity-Mobile → Settings → Secrets and variables �
 - `ANTHROPIC_API_KEY` — optional Claude API key.
 - `GEMINI_API_KEY` — optional Gemini API key.
 - `OPENAI_API_KEY` — optional OpenAI API key.\n
-Add provider keys as GitHub repository secrets. The manual deployment workflow copies any configured optional provider key into Cloudflare Worker secrets; absent keys remain unconfigured. Do not paste keys into chat, Git, APK settings or logs.
+Add provider keys as GitHub repository secrets. The manual deployment workflow copies any configured optional provider key into Cloudflare Worker secrets. If a GitHub secret is absent, the workflow leaves any existing Cloudflare Worker secret unchanged; remove a previously configured key explicitly with `wrangler secret delete KEY_NAME` only after owner approval. Do not paste keys into chat, Git, APK settings or logs.
 
 **Repository variable**
 - `FACTORY_API_CORS_ORIGIN` — one exact HTTPS origin; no wildcard.
