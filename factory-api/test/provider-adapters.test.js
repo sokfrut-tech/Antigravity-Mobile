@@ -53,6 +53,7 @@ test("Claude adapter uses official Messages API and extracts text", async () => 
   assert.equal(captured.init.headers["anthropic-version"], "2026-10-21");
   assert.equal(captured.init.headers.authorization, "Bearer claude-secret");
   assert.equal(JSON.parse(captured.init.body).model, "claude-sonnet-5");
+  assert.equal(result.model, "claude-sonnet-5");
   assert.equal(result.output, "Implementation plan.");
   assert.equal(result.providerRequestId, "msg_123");
 });
