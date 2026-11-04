@@ -27,7 +27,8 @@ internal class TaskStorage(context: Context) {
                     val statusName = item.optString("status")
                     val status = runCatching { TaskStatus.valueOf(statusName) }.getOrNull()
                     if (id > 0L && title.isNotBlank() && status != null) {
-                        add(BoardTask(id, title, details, status))
+                        val progress = if (item.has("progressPercent") && !item.isNull("progressPercent")) item.optInt("progressPercent").coerceIn(0, 100) else null
+                        add(BoardTask(id, title, details, status, progressPercent = progress, isRunning = false))
                     }
                 }
             }
@@ -46,6 +47,7 @@ internal class TaskStorage(context: Context) {
                     .put("title", task.title)
                     .put("details", task.details)
                     .put("status", task.status.name)
+                    .put("progressPercent", task.progressPercent)
             )
         }
         preferences.edit().putString(KEY_TASKS, array.toString()).apply()
