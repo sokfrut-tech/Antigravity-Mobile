@@ -248,7 +248,7 @@ async function claimProviderRun(request, taskId, env) {
       env.DB.prepare(
         `INSERT OR IGNORE INTO task_runs
          (id,task_id,user_id,run_key,provider,role,status,attempt,dispatch_token,request_fingerprint,created_at,updated_at)
-         SELECT ?,?,?,?,?,?,'claimed',1,?,?,?,?,?
+         SELECT ?,?,?,?,?,?,'claimed',1,?,?,?,?
          WHERE EXISTS (SELECT 1 FROM tasks WHERE id=?)`
       ).bind(runId, taskId, task.user_id, body.runKey.trim(), body.provider, body.role,
         dispatchToken, fingerprint, now, now, taskId),
