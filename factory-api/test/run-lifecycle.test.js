@@ -82,3 +82,16 @@ test("stale expected status returns conflict", async () => {
   assert.equal(response.status, 409);
   assert.equal((await response.json()).error.code, "stale_run_state");
 });
+
+test("provider acceptance may use confirmed HTTP response evidence without fabricating a provider ID", async () => {
+  const store = env();
+  const response = await transitionProviderRun(request({
+    expectedStatus: "dispatching",
+    nextStatus: "accepted",
+    responseReceived: true,
+    summary: "Provider returned a valid response"
+  }), runId, store);
+  assert.equal(response.status, 201);
+  assert.equal((await response.json()).status, "accepted");
+  assert.match(store.calls[0][1].sql, /INSERT INTO task_run_events/);
+});
