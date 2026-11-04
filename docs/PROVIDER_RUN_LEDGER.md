@@ -1,0 +1,89 @@
+# Durable provider run ledger
+
+Status: server-side one-shot provider dispatch implemented on the integration branch; not deployed, 2026-11-04.
+
+## Implemented claim endpoint
+
+`POST /v1/tasks/:id/runs` authenticates only the trusted runner and creates a durable claim plus its first append-only event in one D1 batch. The trusted-runner claim endpoint accepts `claude`, `gemini` or `openai`. The authenticated owner endpoint `POST /v1/tasks/:id/dispatch` selects the first configured provider in the order Gemini → Claude → OpenAI, claims a durable run, persists `dispatching`, invokes the provider adapter and stores the response as an immutable output. The normalized request is fingerprinted; raw provider payload and credentials are not stored. Task-level preferred provider/role constraints are enforced.
+
+- New claim: `201`; same key and same fingerprint: existing claim with `200`.
+- Same key with a different fingerprint: `409 run_key_conflict`.
+- Different key while a non-terminal run exists: `409 active_run_exists`.
+- A provider key is read only from a Worker secret binding. `/v1/providers` reveals only a configured boolean and default model, never key values. A configured key is not proof of validity; the first real dispatch is the credential check.
+- Successful provider responses enter `review`; they are not marked completed. Independent acceptance review and explicit completion remain future work.
+- 4xx provider rejection is recorded as definite failure. 5xx, timeout, connection loss or malformed/empty response is `outcome_unknown`; automatic retry is blocked.
+- Provider output is stored in immutable `task_run_outputs` via migration `0004_task_run_outputs.sql` and can be retrieved by the authenticated owner.
+
+## Purpose
+
+The task idempotency key protects task creation. It does not protect provider dispatch. This ledger adds a separate durable identity for each logical provider run.
+
+## Storage
+
+Cloudflare D1 migration: `migrations/0002_task_runs.sql`.
+
+- `task_runs` is the authoritative run record.
+- `UNIQUE(task_id, run_key)` prevents two claims for the same logical run.
+- A partial unique index permits only one non-terminal run per task, even if concurrent callers choose different run keys. `failed`, `completed` and `cancelled` are terminal; `blocked`, `partial` and `outcome_unknown` continue to reserve the task until explicitly reconciled or cancelled.
+- `dispatch_token` is a unique opaque identifier for the single dispatch claim.
+- `provider_request_id` is unique per provider when present.
+- `task_run_events` is append-only run history with a per-run sequence.
+
+## Required dispatch protocol
+
+1. Authenticate the owner for the dispatch request and use the separate runner secret internally for lifecycle mutations. The mobile client never receives the runner credential.
+2. Validate task ownership, provider allowlist, role, policy and approval requirements.
+3. Calculate a stable request fingerprint from the normalized provider, role, model and payload. Never store credentials or raw secret values in it.
+4. In one D1 transaction/batch, atomically insert a `claimed` row using the caller's stable `run_key` and append its first event. The `(task_id, run_key)` constraint deduplicates the same logical request; the one-active-run partial index rejects different keys racing for the same task. If the key already exists, return the existing run only when its normalized request fingerprint matches; otherwise return a conflict. Neither case may dispatch again.
+5. Persist `dispatch_started` before making the outbound provider request.
+6. On a definite provider rejection that proves no work was accepted, record `failed` with a sanitized reason. A retry must be explicitly authorized and use a new run key.
+7. On a provider response, persist its provider request ID when available, or record explicit `responseReceived` evidence when the API does not expose an ID. Never fabricate a provider request ID.
+8. On timeout, connection loss, malformed response or process crash after dispatch may have begun, persist `outcome_unknown`. Do not automatically send the request again.
+9. Reconcile an unknown outcome using provider request lookup/webhook or a human decision. If it cannot be reconciled, keep it blocked; do not assume failure.
+10. Mark `completed` only after independent acceptance checks and evidence are recorded.
+
+## Retry and concurrency rules
+
+- Repeated request with the same `(task_id, run_key)`: return the existing run; never issue another provider call.
+- Different key while an active run exists for the same task: reject until the active run is terminal or explicitly cancelled.
+- `outcome_unknown` is non-retryable automatically.
+- A retry after a confirmed non-acceptance needs an explicit authorization event and a new run key.
+- A provider's own idempotency feature may be used only after its official contract is verified; do not assume Claude and Gemini offer equivalent guarantees.
+- D1 unique constraints are the final duplicate guard. GitHub Actions concurrency, files in inbox/outbox and in-memory locks are not substitutes.
+
+## Security
+
+- Provider credentials are retrieved by the trusted worker from secret bindings at dispatch time. Never store them in D1, task payloads, events, artifacts, logs or Git.
+- Store only sanitized provider error codes/messages; do not persist raw response headers or exception text.
+- Android users can read only their own task/run history. Only a trusted runner can claim or update runs.
+- The owner dispatch endpoint performs one provider network request only after the durable claim and `dispatching` event are committed. Provider keys are Worker secrets. No provider tool execution, repository write, deployment or external action is granted to the model response.
+
+## Verification boundary
+
+Applying this migration locally in CI proves SQL syntax and migration compatibility only. It does not prove a remote D1 database exists, the Worker is deployed, or Claude/Gemini are connected.
+
+
+## Legacy task-event boundary
+
+The older task-level runner event endpoint is retained for progress/status compatibility, but it cannot emit a `completed` event or set task status to `completed`. The separate run-lifecycle endpoint currently permits only the limited transitions listed below; completion remains disabled until a separately reviewed operation validates acceptance evidence against the durable run. A progress event, a provider response, or a runner assertion alone is not completion evidence.
+
+
+## Guarded lifecycle design
+
+The lifecycle mutation contract is specified in [`PROVIDER_RUN_TRANSITIONS.md`](./PROVIDER_RUN_TRANSITIONS.md). It defines compare-and-set transitions, atomic event recording, disabled completion/reconciliation/cancellation gates, and required real-D1 concurrency tests.
+
+
+## Guarded run lifecycle endpoint
+
+A runner-only `POST /v1/runs/:runId/transitions` endpoint now supports a deliberately limited transition graph. It uses an expected-current-status compare-and-set update and appends the corresponding immutable run event in the same D1 batch. A third conditional statement forces a constraint failure (and therefore batch rollback) if a status update occurred but its audit event was not inserted. A stale expected status causes no mutation and returns a conflict.
+
+Enabled transitions:
+- `claimed -> dispatching`
+- `dispatching -> accepted` (requires a bounded provider request ID supplied by the trusted runner)
+- `dispatching -> failed` (requires definite-rejection classification and bounded reason code)
+- `dispatching -> outcome_unknown` (requires a recognized ambiguity classification)
+- `accepted -> running/review/outcome_unknown`
+- `running -> review/failed/outcome_unknown`
+- `review -> failed`
+
+Completion, cancellation, reconciliation from `outcome_unknown`, and retry authorization remain disabled. The endpoint does not contact a provider and does not independently verify provider request IDs; the trusted orchestrator must only submit acceptance after validating the provider response. Unit tests cover auth, disabled completion, required evidence fields, compare-and-set SQL, audit insertion, rollback guard and stale status. These tests use a D1 adapter test double; actual local D1 concurrency/rollback integration tests remain required before deployment.

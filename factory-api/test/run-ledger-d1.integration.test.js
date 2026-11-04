@@ -1,0 +1,339 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterEach, beforeEach, test } from "node:test";
+import { Miniflare } from "miniflare";
+import { transitionProviderRun } from "../src/run-lifecycle.js";
+import worker from "../src/index.js";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const migrationsDir = join(here, "..", "migrations");
+const token = "runner-secret-value-0123456789abcdef0123456789";
+const runId = "00000000-0000-4000-8000-000000000001";
+const taskId = "00000000-0000-4000-8000-000000000002";
+const timestamp = "2026-11-04T12:00:00.000Z";
+
+let mf;
+let DB;
+
+async function seed() {
+  await DB.prepare(`INSERT INTO tasks
+    (id,user_id,title,brief,project_id,priority,status,correlation_id,
+     acceptance_criteria_json,created_at,updated_at)
+    VALUES(?,?,?,?,?,'normal','new',?,'[]',?,?)`)
+    .bind(taskId,"owner","Test task","D1 integration","factory","corr-test",timestamp,timestamp).run();
+  await DB.prepare(`INSERT INTO task_runs
+    (id,task_id,user_id,run_key,provider,role,status,attempt,dispatch_token,
+     request_fingerprint,created_at,updated_at)
+    VALUES(?,?,?,'run-key-001','claude','implementer','claimed',1,?,?,?,?)`)
+    .bind(runId,taskId,"owner","dispatch-token-0001","fingerprint",timestamp,timestamp).run();
+  await DB.prepare(`INSERT INTO task_run_events
+    (id,run_id,task_id,sequence,type,timestamp,summary,data_json)
+    VALUES('event-claimed',?,?,1,'claimed',?,'Claimed','{}')`)
+    .bind(runId,taskId,timestamp).run();
+}
+
+function request(body) {
+  return new Request(`https://factory.test/v1/runs/${runId}/transitions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+}
+
+async function status() {
+  const row = await DB.prepare("SELECT status FROM task_runs WHERE id=?").bind(runId).first();
+  return row.status;
+}
+
+beforeEach(async () => {
+  mf = new Miniflare({
+    modules: true,
+    script: "export default { fetch() { return new Response('ok'); } };",
+    d1Databases: { DB: "00000000-0000-4000-8000-000000000099" }
+  });
+  await mf.ready;
+  DB = await mf.getD1Database("DB");
+  for (const name of ["0001_initial.sql", "0002_task_runs.sql", "0003_task_run_event_guards.sql", "0004_task_run_outputs.sql"]) {
+    const sql = (await readFile(join(migrationsDir, name), "utf8"))
+      .replace("PRAGMA foreign_keys = ON;", "")
+      .split(/\r?\n/).filter(line => !line.trimStart().startsWith("--")).join("\n");
+    // Miniflare D1 exec accepts one statement at a time. Keep trigger bodies intact.
+    let statement = "";
+    let inTrigger = false;
+    for (const line of sql.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!statement.trim() && /^CREATE TRIGGER\b/i.test(trimmed)) inTrigger = true;
+      statement += line + "\n";
+      if (inTrigger ? /^END;$/i.test(trimmed) : trimmed.endsWith(";")) {
+        if (statement.trim()) await DB.prepare(statement).run();
+        statement = "";
+        inTrigger = false;
+      }
+    }
+    if (statement.trim()) await DB.prepare(statement).run();
+  }
+  await seed();
+});
+
+afterEach(async () => {
+  await mf?.dispose();
+});
+
+test("same run key replay in claimed state returns the existing run without duplicating its audit event", async () => {
+  const replayTaskId = "00000000-0000-4000-8000-000000000003";
+  await DB.prepare(`INSERT INTO tasks
+    (id,user_id,title,brief,project_id,priority,status,correlation_id,
+     acceptance_criteria_json,created_at,updated_at)
+    VALUES(?,?,'Replay task','Idempotency test','factory','normal','new',
+           'corr-replay','[]',?,?)`)
+    .bind(replayTaskId,"owner",timestamp,timestamp).run();
+
+  const body = {
+    runKey: "replay-key-001",
+    provider: "claude",
+    role: "implementer",
+    model: "claude-sonnet",
+    payload: { prompt: "same request", options: { temperature: 0 } }
+  };
+  const makeRequest = () => new Request(`https://factory.test/v1/tasks/${replayTaskId}/runs`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Origin: "https://mobile.example.test",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const env = { DB, FACTORY_RUNNER_TOKEN: token, CORS_ORIGIN: "https://mobile.example.test" };
+  const first = await worker.fetch(makeRequest(), env);
+  assert.equal(first.status, 201);
+  const firstBody = await first.json();
+  assert.equal(firstBody.status, "claimed");
+  assert.equal(firstBody.replayed, false);
+
+  const replay = await worker.fetch(makeRequest(), env);
+  assert.equal(replay.status, 200);
+  const replayBody = await replay.json();
+  assert.equal(replayBody.runId, firstBody.runId);
+  assert.equal(replayBody.status, "claimed");
+  assert.equal(replayBody.replayed, true);
+
+  const runs = await DB.prepare("SELECT COUNT(*) AS count FROM task_runs WHERE task_id=?")
+    .bind(replayTaskId).first();
+  const events = await DB.prepare("SELECT COUNT(*) AS count FROM task_run_events WHERE task_id=?")
+    .bind(replayTaskId).first();
+  assert.equal(runs.count, 1);
+  assert.equal(events.count, 1);
+
+  const changedBody = {
+    ...body,
+    payload: { prompt: "changed payload", options: { temperature: 0 } }
+  };
+  const changedReplay = await worker.fetch(new Request(`https://factory.test/v1/tasks/${replayTaskId}/runs`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Origin: "https://mobile.example.test",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(changedBody)
+  }), env);
+  assert.equal(changedReplay.status, 409);
+  assert.equal((await changedReplay.json()).error.code, "run_key_conflict");
+});
+
+test("D1 batch compare-and-set permits only one concurrent transition and event", async () => {
+  const payload = { expectedStatus:"claimed", nextStatus:"dispatching", summary:"Dispatch started" };
+  const [a,b] = await Promise.all([
+    transitionProviderRun(request(payload),runId,{DB,FACTORY_RUNNER_TOKEN:token}),
+    transitionProviderRun(request(payload),runId,{DB,FACTORY_RUNNER_TOKEN:token})
+  ]);
+  assert.deepEqual([a.status,b.status].sort(),[201,409]);
+  assert.equal(await status(),"dispatching");
+  const event = await DB.prepare("SELECT COUNT(*) AS count FROM task_run_events WHERE run_id=? AND type='dispatch_started'").bind(runId).first();
+  assert.equal(event.count,1);
+});
+
+test("D1 batch rolls back status when audit event insert fails", async () => {
+  await DB.prepare(`CREATE TRIGGER reject_dispatch_audit
+    BEFORE INSERT ON task_run_events WHEN NEW.type='dispatch_started'
+    BEGIN SELECT RAISE(ABORT,'forced audit failure'); END;`).run();
+  const response = await transitionProviderRun(
+    request({expectedStatus:"claimed",nextStatus:"dispatching",summary:"Dispatch started"}),
+    runId,{DB,FACTORY_RUNNER_TOKEN:token}
+  );
+  assert.equal(response.status,503);
+  assert.equal(await status(),"claimed");
+  const event = await DB.prepare("SELECT COUNT(*) AS count FROM task_run_events WHERE run_id=? AND type='dispatch_started'").bind(runId).first();
+  assert.equal(event.count,0);
+});
+
+test("D1 migration rejects cross-task events and event updates", async () => {
+  await DB.prepare(`INSERT INTO tasks
+    (id,user_id,title,brief,project_id,priority,status,correlation_id,
+     acceptance_criteria_json,created_at,updated_at)
+    VALUES('other-task','owner','Other','Other task','factory','normal','new',
+           'corr-other','[]',?,?)`).bind(timestamp,timestamp).run();
+  await assert.rejects(DB.prepare(`INSERT INTO task_run_events
+    (id,run_id,task_id,sequence,type,timestamp,summary,data_json)
+    VALUES('wrong-owner',?,'other-task',2,'blocked',?,'Bad','{}')`)
+    .bind(runId,timestamp).run());
+  await assert.rejects(DB.prepare("UPDATE task_run_events SET summary='rewritten' WHERE id='event-claimed'").run());
+  await assert.rejects(DB.prepare("DELETE FROM task_run_events WHERE id='event-claimed'").run());
+  const retained = await DB.prepare("SELECT COUNT(*) AS count FROM task_run_events WHERE id='event-claimed'").first();
+  assert.equal(retained.count,1);
+});
+
+
+test("ambiguous timeout remains outcome_unknown and cannot be retried with a new run key", async () => {
+  const start = await transitionProviderRun(request({
+    expectedStatus: "claimed", nextStatus: "dispatching", summary: "Dispatch started"
+  }), runId, { DB, FACTORY_RUNNER_TOKEN: token });
+  assert.equal(start.status, 201);
+
+  const ambiguous = await transitionProviderRun(request({
+    expectedStatus: "dispatching",
+    nextStatus: "outcome_unknown",
+    outcomeKind: "timeout",
+    summary: "Transport timed out; provider outcome is unknown"
+  }), runId, { DB, FACTORY_RUNNER_TOKEN: token });
+  assert.equal(ambiguous.status, 201);
+  assert.equal(await status(), "outcome_unknown");
+
+  const events = await DB.prepare(
+    "SELECT type,data_json FROM task_run_events WHERE run_id=? ORDER BY sequence"
+  ).bind(runId).all();
+  assert.deepEqual((events.results || []).map(event => event.type),
+    ["claimed", "dispatch_started", "outcome_unknown"]);
+  assert.equal(JSON.parse(events.results[2].data_json).outcomeKind, "timeout");
+
+  const retryTask = "00000000-0000-4000-8000-000000000004";
+  await DB.prepare(`INSERT INTO tasks
+    (id,user_id,title,brief,project_id,priority,status,correlation_id,
+     acceptance_criteria_json,created_at,updated_at)
+    VALUES(?,?,'Unknown task','No blind retry','factory','normal','new',
+           'corr-unknown','[]',?,?)`)
+    .bind(retryTask,"owner",timestamp,timestamp).run();
+  const claim = key => new Request(`https://factory.test/v1/tasks/${retryTask}/runs`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Origin: "https://mobile.example.test",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      runKey: key, provider: "claude", role: "implementer", model: "claude-sonnet",
+      payload: { prompt: "same logical operation" }
+    })
+  });
+  const env = { DB, FACTORY_RUNNER_TOKEN: token, CORS_ORIGIN: "https://mobile.example.test" };
+  const first = await worker.fetch(claim("unknown-run-key"), env);
+  assert.equal(first.status, 201);
+  const firstBody = await first.json();
+  await transitionProviderRun(new Request(`https://factory.test/v1/runs/${firstBody.runId}/transitions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      expectedStatus: "claimed", nextStatus: "dispatching", summary: "Dispatch started"
+    })
+  }), firstBody.runId, { DB, FACTORY_RUNNER_TOKEN: token });
+  const markUnknown = await transitionProviderRun(new Request(`https://factory.test/v1/runs/${firstBody.runId}/transitions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      expectedStatus: "dispatching", nextStatus: "outcome_unknown",
+      outcomeKind: "connection_lost", summary: "Connection lost"
+    })
+  }), firstBody.runId, { DB, FACTORY_RUNNER_TOKEN: token });
+  assert.equal(markUnknown.status, 201);
+
+  const replay = await worker.fetch(claim("unknown-run-key"), env);
+  assert.equal(replay.status, 200);
+  const replayBody = await replay.json();
+  assert.equal(replayBody.runId, firstBody.runId);
+  assert.equal(replayBody.status, "outcome_unknown");
+  assert.equal(replayBody.replayed, true);
+
+  const blindRetry = await worker.fetch(claim("new-blind-retry-key"), env);
+  assert.equal(blindRetry.status, 409);
+  assert.equal((await blindRetry.json()).error.code, "active_run_exists");
+});
+
+test("owner dispatches to a configured provider once and retrieves the immutable result", async () => {
+  const dispatchTaskId = "00000000-0000-4000-8000-000000000005";
+  await DB.prepare(`INSERT INTO tasks
+    (id,user_id,title,brief,project_id,priority,status,correlation_id,
+     acceptance_criteria_json,created_at,updated_at)
+    VALUES(?,?,'Dispatch integration','Return a concise implementation review','factory',
+           'normal','new','corr-dispatch','["Identify risks","Suggest tests"]',?,?)`)
+    .bind(dispatchTaskId,"owner",timestamp,timestamp).run();
+
+  const ownerToken = "owner-token-value-0123456789abcdef0123456789";
+  const ownerDigest = createHash("sha256").update(ownerToken).digest("hex");
+  const originalFetch = globalThis.fetch;
+  let providerCalls = 0;
+  globalThis.fetch = async (url, init) => {
+    providerCalls += 1;
+    assert.match(String(url), /generativelanguage\.googleapis\.com/);
+    assert.equal(init.headers["x-goog-api-key"], "test-server-secret");
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: "Provider result: review complete." }] } }]
+    }), { status: 200, headers: { "x-goog-request-id": "gemini-request-555" } });
+  };
+  const env = {
+    DB,
+    API_TOKEN_SHA256: ownerDigest,
+    FACTORY_RUNNER_TOKEN: token,
+    GEMINI_API_KEY: "test-server-secret",
+    CORS_ORIGIN: "https://mobile.example.test"
+  };
+  const makeDispatch = () => new Request(`https://factory.test/v1/tasks/${dispatchTaskId}/dispatch`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${ownerToken}`,
+      Origin: "https://mobile.example.test",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ runKey: "dispatch-key-001", provider: "auto", role: "implementer" })
+  });
+
+  try {
+    const response = await worker.fetch(makeDispatch(), env);
+    assert.equal(response.status, 201);
+    const result = await response.json();
+    assert.equal(result.status, "review");
+    assert.equal(result.provider, "gemini");
+    assert.equal(result.providerRequestId, "gemini-request-555");
+    assert.equal(result.output, "Provider result: review complete.");
+    assert.equal(providerCalls, 1);
+
+    const saved = await DB.prepare("SELECT output_text FROM task_run_outputs WHERE run_id=?")
+      .bind(result.runId).first();
+    assert.equal(saved.output_text, result.output);
+    const run = await DB.prepare("SELECT status FROM task_runs WHERE id=?").bind(result.runId).first();
+    assert.equal(run.status, "review");
+    const task = await DB.prepare("SELECT status FROM tasks WHERE id=?").bind(dispatchTaskId).first();
+    assert.equal(task.status, "review");
+
+    const duplicate = await worker.fetch(makeDispatch(), env);
+    assert.equal(duplicate.status, 409);
+    assert.equal(providerCalls, 1);
+
+    const outputResponse = await worker.fetch(new Request(
+      `https://factory.test/v1/tasks/${dispatchTaskId}/runs/${result.runId}/output`,
+      { headers: { Authorization: `Bearer ${ownerToken}`, Origin: "https://mobile.example.test" } }
+    ), env);
+    assert.equal(outputResponse.status, 200);
+    assert.equal((await outputResponse.json()).output, result.output);
+
+    await assert.rejects(DB.prepare("UPDATE task_run_outputs SET output_text='rewritten' WHERE run_id=?")
+      .bind(result.runId).run());
+    await assert.rejects(DB.prepare("DELETE FROM task_run_outputs WHERE run_id=?")
+      .bind(result.runId).run());
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -147,3 +147,22 @@ test("trusted runner can append a bounded progress event", async () => {
   assert.equal(batches, 1);
   assert.equal((await response.json()).accepted, true);
 });
+
+test("provider status endpoint reveals configuration but never secret values", async () => {
+  const ownerToken = "owner-token-value-0123456789abcdef0123456789";
+  const response = await worker.fetch(
+    new Request("https://api.example.test/v1/providers", {
+      headers: { Origin: allowedOrigin, Authorization: `Bearer ${ownerToken}` }
+    }),
+    {
+      DB: {},
+      API_TOKEN_SHA256: createHash("sha256").update(ownerToken).digest("hex"),
+      CORS_ORIGIN: allowedOrigin,
+      GEMINI_API_KEY: "must-never-be-returned"
+    }
+  );
+  assert.equal(response.status, 200);
+  const body = await response.text();
+  assert.match(body, /"id":"gemini","configured":true/);
+  assert.equal(body.includes("must-never-be-returned"), false);
+});

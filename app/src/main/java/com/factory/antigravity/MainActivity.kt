@@ -42,7 +42,9 @@ internal data class BoardTask(
     val status: TaskStatus = TaskStatus.TODO,
     val progressPercent: Int? = null,
     val isRunning: Boolean = false,
-    val remoteTaskId: String? = null
+    val remoteTaskId: String? = null,
+    val remoteRunId: String? = null,
+    val agentOutput: String? = null
 )
 
 internal enum class TaskStatus(val label: String) {
@@ -71,13 +73,13 @@ private val AntigravityDarkColors = darkColorScheme(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { AntigravityApp() }
+        setContent { AgentCommandCenterShell() }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AntigravityApp() {
+internal fun AntigravityApp() {
     val context = LocalContext.current
     val storage = remember(context) { TaskStorage(context) }
     val connectionStore = remember(context) { SecureTokenStore(context) }
@@ -186,7 +188,7 @@ private fun AntigravityApp() {
             bottomBar = {
                 Surface(color = MaterialTheme.colorScheme.surface) {
                     Text(
-                        "v0.2.3 · Задачи сохраняются на устройстве",
+                        "v0.3.0 · Задачи сохраняются на устройстве",
                         modifier = Modifier
                             .fillMaxWidth()
                             .navigationBarsPadding()
@@ -266,18 +268,35 @@ private fun AntigravityApp() {
                                         connectionStatus = "Сохраните HTTPS-адрес и bearer token в настройках"
                                     } else {
                                         scope.launch {
-                                            connectionStatus = "Отправляем задачу в фабрику…"
-                                            val submission = runCatching {
-                                                FactoryApiClient.createTask(baseUrl, token, task.id, task.title, task.details)
+                                            connectionStatus = "Сохраняем задачу и выбираем доступного агента…"
+                                            val remoteId = runCatching {
+                                                task.remoteTaskId ?: FactoryApiClient.createTask(
+                                                    baseUrl, token, task.id, task.title, task.details
+                                                ).id
+                                            }.getOrElse {
+                                                connectionStatus = "Не удалось сохранить задачу: " + (it.message ?: "ошибка сети")
+                                                return@launch
                                             }
-                                            connectionStatus = submission.fold(
-                                                onSuccess = { result ->
-                                                    val index = tasks.indexOfFirst { it.id == task.id }
-                                                    if (index >= 0) tasks[index] = tasks[index].copy(remoteTaskId = result.id)
-                                                    "Задача принята фабрикой. Ожидаем события агента."
-                                                },
-                                                onFailure = { "Не удалось отправить: " + (it.message ?: "ошибка сети") }
-                                            )
+                                            val index = tasks.indexOfFirst { it.id == task.id }
+                                            if (index >= 0) tasks[index] = tasks[index].copy(remoteTaskId = remoteId)
+                                            connectionStatus = "Передаём задачу выбранному провайдеру…"
+                                            runCatching {
+                                                FactoryApiClient.dispatchTask(
+                                                    baseUrl, token, remoteId, task.id, task.title, task.details
+                                                )
+                                            }.onSuccess { result ->
+                                                val currentIndex = tasks.indexOfFirst { it.id == task.id }
+                                                if (currentIndex >= 0) tasks[currentIndex] = tasks[currentIndex].copy(
+                                                    remoteTaskId = remoteId,
+                                                    remoteRunId = result.runId,
+                                                    agentOutput = result.output,
+                                                    status = TaskStatus.IN_PROGRESS,
+                                                    isRunning = false
+                                                )
+                                                connectionStatus = "Ответ ${result.provider} получен и сохранён. Требуется проверка."
+                                            }.onFailure {
+                                                connectionStatus = "Фабрика: " + (it.message ?: "не удалось запустить агента")
+                                            }
                                         }
                                     }
                                 }
@@ -341,6 +360,13 @@ private fun TaskCard(
                     )
                 }
             }
+            if (!task.agentOutput.isNullOrBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text("ОТВЕТ АГЕНТА", color = Color(0xFFE0AE45), fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmall)
+                Text(task.agentOutput, color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodySmall, maxLines = 8)
+            }
             if (task.details.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(task.details, style = MaterialTheme.typography.bodyMedium,
@@ -361,7 +387,7 @@ private fun TaskCard(
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 AssistChip(onClick = onSend, modifier = Modifier.weight(1f),
-                    label = { Text("⚡ Фабрика", style = MaterialTheme.typography.labelSmall, maxLines = 1) })
+                    label = { Text("⚡ Запустить агента", style = MaterialTheme.typography.labelSmall, maxLines = 1) })
                 AssistChip(onClick = onDelete,
                     label = { Text("Удалить", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, maxLines = 1) })
             }
