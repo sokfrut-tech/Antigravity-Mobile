@@ -56,7 +56,7 @@ internal fun AgentCommandCenterShell() {
             topBar = {
                 TopAppBar(title = {
                     Column {
-                        Text("⚡ ANTIGRAVITY", fontWeight = FontWeight.Black, fontSize = 17.sp)
+                        Text("⚡ Antigravity Mobile", fontWeight = FontWeight.Black, fontSize = 17.sp)
                         Text(screen.title.uppercase(), style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.secondary)
                     }
@@ -154,8 +154,8 @@ private fun OverviewScreen(onTasks: () -> Unit, onAgents: () -> Unit, onConnecti
         Text("Ставь цель — координатор распределит работу, специалисты выполнят части задачи, проверяющий оценит результат.",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            MetricCard("АГЕНТЫ", "0 / 4", "не подключены", Modifier.weight(1f))
-            MetricCard("ЗАДАЧИ", "Локально", "синхронизация API", Modifier.weight(1f))
+            MetricCard("АГЕНТЫ", "Не подключены", "ожидают настройки", Modifier.weight(1f))
+            MetricCard("ЗАДАЧИ", "Локально", "Factory API не развёрнут", Modifier.weight(1f))
         }
         StatusPanel("Ядро оркестрации", "Ожидает подключения",
             "Мобильный интерфейс готовит управление. Реальная передача задач включится после развёртывания Factory API и подключения исполнителя.")
@@ -220,7 +220,20 @@ private fun InformationScreen(title: String, description: String, status: String
         Text(description, color = MaterialTheme.colorScheme.onSurfaceVariant)
         StatusPanel(title, "Подготовлено к интеграции", status)
         features.forEachIndexed { index, feature ->
-            ActionPanel("${index + 1}", feature, "Компонент предусмотрен архитектурой фабрики") {}
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF192A20))
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("${index + 1}", color = Color(0xFF9BFF57), fontWeight = FontWeight.Bold)
+                    Text(feature, color = MaterialTheme.colorScheme.onSurface)
+                }
+            }
         }
     }
 }
