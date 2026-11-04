@@ -6,7 +6,8 @@ import org.json.JSONObject
 
 /**
  * Small local persistence layer for the offline-first task board.
- * Provider credentials and secret metadata must never be stored here. Bounded agent output\n * is a user-visible local artifact and is persisted with its task.
+ * Provider credentials and secret metadata must never be stored here. Bounded agent output
+ * is a user-visible local artifact and is persisted with its task.
  */
 internal class TaskStorage(context: Context) {
     private val preferences = context.applicationContext.getSharedPreferences(
@@ -28,7 +29,7 @@ internal class TaskStorage(context: Context) {
                     val status = runCatching { TaskStatus.valueOf(statusName) }.getOrNull()
                     if (id > 0L && title.isNotBlank() && status != null) {
                         val progress = if (item.has("progressPercent") && !item.isNull("progressPercent")) item.optInt("progressPercent").coerceIn(0, 100) else null
-                        add(BoardTask(id, title, details, status, progressPercent = progress, isRunning = false, remoteTaskId = item.optString("remoteTaskId").takeIf { it.isNotBlank() && it != "null" }, remoteRunId = item.optString("remoteRunId").takeIf { it.isNotBlank() }, agentOutput = item.optString("agentOutput").takeIf { it.isNotBlank() }))
+                        add(BoardTask(id, title, details, status, progressPercent = progress, isRunning = false, remoteTaskId = item.optString("remoteTaskId").takeIf { it.isNotBlank() && it != "null" }, remoteRunId = item.optString("remoteRunId").takeIf { it.isNotBlank() && it != "null" }, agentOutput = item.optString("agentOutput").takeIf { it.isNotBlank() }))
                     }
                 }
             }
