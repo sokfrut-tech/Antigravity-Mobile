@@ -12,6 +12,9 @@ migrations_dir = "migrations"
 # Set this to the exact HTTPS origin hosting the Android web login/callback if used.
 # Native Android requests can use a dedicated origin policy; do not use "*".
 CORS_ORIGIN = "https://replace-with-your-owned-domain.example"
+# Live paid provider calls require this exact opt-in AND per-task user confirmation.
+# Keep false until the owner explicitly authorizes provider API spending.
+ALLOW_LIVE_PROVIDERS = "false"
 
 # Secrets required:
 #   API_TOKEN_SHA256 = SHA-256 hex digest of a long random bearer token.

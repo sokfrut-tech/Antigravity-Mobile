@@ -7,6 +7,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <!-- nosemgrep: java.android.security.exported_activity.exported_activity — Android launcher entry point; MAIN/LAUNCHER only, no deep links. -->
         <activity
             android:name=".MainActivity"
             android:exported="true">

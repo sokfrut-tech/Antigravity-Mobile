@@ -36,6 +36,7 @@ internal class SecureTokenStore(context: Context) {
                 "Bearer token must be 32–512 URL-safe characters."
             }
             val cipher = Cipher.getInstance(TRANSFORMATION)
+            // nosemgrep: kotlin.lang.security.gcm-detection.gcm-detection — Android Keystore generates a fresh IV for each encryption; the IV is stored with its ciphertext.
             cipher.init(Cipher.ENCRYPT_MODE, getOrCreateKey())
             val encrypted = cipher.iv + cipher.doFinal(normalizedToken.toByteArray(Charsets.UTF_8))
             editor.putString(KEY_TOKEN, Base64.encodeToString(encrypted, Base64.NO_WRAP))
@@ -51,6 +52,7 @@ internal class SecureTokenStore(context: Context) {
             val iv = payload.copyOfRange(0, IV_LENGTH)
             val ciphertext = payload.copyOfRange(IV_LENGTH, payload.size)
             val cipher = Cipher.getInstance(TRANSFORMATION)
+            // nosemgrep: kotlin.lang.security.gcm-detection.gcm-detection — matching decrypt operation for the stored ciphertext and authenticated IV.
             cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(TAG_BITS, iv))
             String(cipher.doFinal(ciphertext), Charsets.UTF_8)
         }.getOrNull()
