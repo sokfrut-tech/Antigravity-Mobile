@@ -71,13 +71,13 @@ private val AntigravityDarkColors = darkColorScheme(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { AntigravityApp() }
+        setContent { AgentCommandCenterShell() }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AntigravityApp() {
+internal fun AntigravityApp() {
     val context = LocalContext.current
     val storage = remember(context) { TaskStorage(context) }
     val connectionStore = remember(context) { SecureTokenStore(context) }
@@ -186,7 +186,7 @@ private fun AntigravityApp() {
             bottomBar = {
                 Surface(color = MaterialTheme.colorScheme.surface) {
                     Text(
-                        "v0.2.3 · Задачи сохраняются на устройстве",
+                        "v0.3.0 · Задачи сохраняются на устройстве",
                         modifier = Modifier
                             .fillMaxWidth()
                             .navigationBarsPadding()

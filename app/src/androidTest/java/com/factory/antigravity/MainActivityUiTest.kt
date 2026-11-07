@@ -20,6 +20,7 @@ class MainActivityUiTest {
     fun userCanOpenConnectionSettingsAndCreateTask() {
         composeRule.onNodeWithText("Antigravity Mobile", substring = true).assertIsDisplayed()
 
+        composeRule.onNodeWithText("Задачи").performClick()
         composeRule.onNodeWithText("API").performClick()
         composeRule.onNodeWithText("Подключение к Factory API").assertIsDisplayed()
         composeRule.onNodeWithText("Отмена").performClick()
